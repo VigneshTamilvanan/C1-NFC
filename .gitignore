@@ -1,0 +1,16 @@
+# Build outputs
+out/
+build/
+app/build/
+
+# Gradle
+.gradle/
+local.properties
+
+# AAR (binary — too large for git, document source instead)
+*.aar
+
+# Android Studio
+.idea/
+*.iml
+captures/
