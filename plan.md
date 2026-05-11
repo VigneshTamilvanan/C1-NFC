@@ -173,7 +173,43 @@ Dashboard auto-refreshes → ticket appears in live feed
 - [ ] Test Google Pay HCE tap end-to-end with Samsung SM-G781B
 - [ ] Confirm ticket issued via NFC tap flow
 
-## Phase 6 — Production readiness ⏳ PENDING
+## Phase 6 — QR Ticket Validation (anna-checker integration) ⏳ BLOCKED
+
+Validate pre-booked MTC tickets by scanning QR on ETM device and calling Moving.Tech API.
+
+**QR payload format (comma-separated):**
+```
+<signature>,<ticketId>,<userId>,<tripId>,<count>,<usedFlag>,<type>,<zone>,<fare_paise>,<colour>,<timestamp>,,,
+```
+
+**API:** `POST https://api.moving.tech/pilot/app/v2/auth/signature` → Bearer token → `POST /multimodal/ticket/verify`
+
+**Auth method:** RSA-SHA256 signed body with conductor credentials, `x-sdk-authorization` header
+
+**Current status:** RSA key + signing logic working. Server returns HTTP 500 — RSA public key not registered on Moving.Tech backend for conductor `O30228`.
+
+**Backend code:** `backend/src/validate.js` — endpoint `POST /api/transit/validate` ready, will work once auth is unblocked.
+
+**Blockers:**
+- [ ] Moving.Tech team to register RSA public key for conductor `O30228`
+- [ ] Or provide a pre-provisioned private key already registered in their system
+- [ ] Once auth works: add QR scanner screen (Screen 4) to ETM Android app
+- [ ] Show ✅ VALID (route, journey, validity) or ❌ INVALID on PAX screen
+
+**RSA public key to register:**
+```
+-----BEGIN PUBLIC KEY-----
+MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAyaf89IraN6KRCeDZ6/Ez
+n7InuNaAHXNqWkVdHKYkYx+Pk1R6oCe2nzsXTnkWBs0tj4kcOIe2w7PqmW0cRl3H
+8Kar0+uxeNCGcWI0BCqSn815+uSabwQuaWXQqUPzTlC8iil6lJWJtFXpHzFk8LcW
+N9Xbq88X634s4xxOO2iVREHsustpgTz154nJcT8nToNjqzF2t130XTijPjIN2DJn
+GifeSvT9ueCL8BB5zLd9ls4t+LtRHFoWt8DU/bijssRfhmVPfu8no+NtFLQ35/VY
+l9vhjR7Ilfoy+x6f+tPTHJhrJLAsdBDnyKz2sPTZexTGxO7CiAzZHVR+EFh/ujMc
+KwIDAQAB
+-----END PUBLIC KEY-----
+```
+
+## Phase 7 — Production readiness ⏳ PENDING
 
 - [ ] Switch from demo credentials to production app key
 - [ ] Generate production signing keystore
