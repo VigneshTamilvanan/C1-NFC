@@ -1,51 +1,227 @@
 <?xml version="1.0" encoding="utf-8"?>
-<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:orientation="vertical"
-    android:gravity="center"
-    android:padding="24dp">
+    android:background="#F5F5F5">
 
-    <TextView
-        android:id="@+id/statusText"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:text="Press INIT first"
-        android:textSize="20sp"
-        android:textAlignment="center" />
-
-    <Button
-        android:id="@+id/initBtn"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:layout_marginTop="24dp"
-        android:text="1. INIT SDK" />
-
-    <EditText
-        android:id="@+id/amountInput"
-        android:layout_width="200dp"
-        android:layout_height="wrap_content"
-        android:layout_marginTop="24dp"
-        android:hint="Amount (e.g. 100)"
-        android:inputType="numberDecimal"
-        android:textAlignment="center" />
-
-    <Button
-        android:id="@+id/payBtn"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:layout_marginTop="8dp"
-        android:text="2. PAY (tap card)" />
-
-    <TextView
-        android:id="@+id/tagText"
+    <!-- Screen 1: Trip Setup -->
+    <ScrollView
+        android:id="@+id/screenTripSetup"
         android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:layout_marginTop="32dp"
-        android:text=""
-        android:textSize="12sp"
-        android:textColor="#555555"
-        android:textAlignment="center"
-        android:fontFamily="monospace" />
+        android:layout_height="match_parent">
 
-</LinearLayout>
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:padding="24dp">
+
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="Chennai One — ETM"
+                android:textSize="22sp"
+                android:textStyle="bold"
+                android:textColor="#1A237E"
+                android:layout_marginBottom="4dp"/>
+
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="Trip Setup"
+                android:textSize="14sp"
+                android:textColor="#888888"
+                android:layout_marginBottom="24dp"/>
+
+            <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
+                android:text="Route" android:textColor="#444444" android:textSize="13sp"
+                android:layout_marginBottom="4dp"/>
+            <Spinner
+                android:id="@+id/spinnerRoute"
+                android:layout_width="match_parent"
+                android:layout_height="48dp"
+                android:layout_marginBottom="20dp"
+                android:background="@android:drawable/btn_dropdown"
+                android:padding="8dp"/>
+
+            <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
+                android:text="Source" android:textColor="#444444" android:textSize="13sp"
+                android:layout_marginBottom="4dp"/>
+            <Spinner
+                android:id="@+id/spinnerSource"
+                android:layout_width="match_parent"
+                android:layout_height="48dp"
+                android:layout_marginBottom="20dp"
+                android:background="@android:drawable/btn_dropdown"
+                android:padding="8dp"/>
+
+            <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
+                android:text="Destination" android:textColor="#444444" android:textSize="13sp"
+                android:layout_marginBottom="4dp"/>
+            <Spinner
+                android:id="@+id/spinnerDest"
+                android:layout_width="match_parent"
+                android:layout_height="48dp"
+                android:layout_marginBottom="20dp"
+                android:background="@android:drawable/btn_dropdown"
+                android:padding="8dp"/>
+
+            <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
+                android:text="Fare (₹)" android:textColor="#444444" android:textSize="13sp"
+                android:layout_marginBottom="4dp"/>
+            <EditText
+                android:id="@+id/inputFare"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:hint="e.g. 25"
+                android:inputType="numberDecimal"
+                android:layout_marginBottom="32dp"
+                android:padding="10dp"/>
+
+            <Button
+                android:id="@+id/btnStartCollection"
+                android:layout_width="match_parent"
+                android:layout_height="56dp"
+                android:text="START COLLECTION"
+                android:textSize="16sp"
+                android:backgroundTint="#1A237E"
+                android:textColor="#FFFFFF"/>
+
+        </LinearLayout>
+    </ScrollView>
+
+    <!-- Screen 2: Tap Screen -->
+    <LinearLayout
+        android:id="@+id/screenTap"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:orientation="vertical"
+        android:gravity="center"
+        android:padding="32dp"
+        android:visibility="gone">
+
+        <TextView
+            android:id="@+id/tapRoute"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Route 21"
+            android:textSize="28sp"
+            android:textStyle="bold"
+            android:textColor="#1A237E"
+            android:textAlignment="center"
+            android:layout_marginBottom="8dp"/>
+
+        <TextView
+            android:id="@+id/tapJourney"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Koyambedu → Adyar"
+            android:textSize="18sp"
+            android:textColor="#444444"
+            android:textAlignment="center"
+            android:layout_marginBottom="24dp"/>
+
+        <TextView
+            android:id="@+id/tapFare"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="₹25"
+            android:textSize="48sp"
+            android:textStyle="bold"
+            android:textColor="#2E7D32"
+            android:textAlignment="center"
+            android:layout_marginBottom="48dp"/>
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Ask passenger to tap phone"
+            android:textSize="16sp"
+            android:textColor="#888888"
+            android:textAlignment="center"
+            android:layout_marginBottom="24dp"/>
+
+        <Button
+            android:id="@+id/btnPay"
+            android:layout_width="match_parent"
+            android:layout_height="64dp"
+            android:text="TAP / PAY NOW"
+            android:textSize="18sp"
+            android:backgroundTint="#2E7D32"
+            android:textColor="#FFFFFF"
+            android:layout_marginBottom="16dp"/>
+
+        <Button
+            android:id="@+id/btnEditTrip"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Edit Trip"
+            android:textSize="14sp"
+            android:backgroundTint="#9E9E9E"
+            android:textColor="#FFFFFF"/>
+
+    </LinearLayout>
+
+    <!-- Screen 3: Result -->
+    <LinearLayout
+        android:id="@+id/screenResult"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:orientation="vertical"
+        android:gravity="center"
+        android:padding="32dp"
+        android:visibility="gone">
+
+        <TextView
+            android:id="@+id/resultStatus"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="TICKET ISSUED"
+            android:textSize="28sp"
+            android:textStyle="bold"
+            android:textAlignment="center"
+            android:layout_marginBottom="24dp"/>
+
+        <TextView
+            android:id="@+id/resultTicketNo"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Ticket #: —"
+            android:textSize="20sp"
+            android:textColor="#1A237E"
+            android:textAlignment="center"
+            android:layout_marginBottom="8dp"/>
+
+        <TextView
+            android:id="@+id/resultTxnId"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Txn: —"
+            android:textSize="13sp"
+            android:textColor="#888888"
+            android:textAlignment="center"
+            android:fontFamily="monospace"
+            android:layout_marginBottom="8dp"/>
+
+        <TextView
+            android:id="@+id/resultJourney"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text=""
+            android:textSize="15sp"
+            android:textColor="#444444"
+            android:textAlignment="center"
+            android:layout_marginBottom="48dp"/>
+
+        <Button
+            android:id="@+id/btnNextPassenger"
+            android:layout_width="match_parent"
+            android:layout_height="64dp"
+            android:text="NEXT PASSENGER"
+            android:textSize="18sp"
+            android:backgroundTint="#1A237E"
+            android:textColor="#FFFFFF"/>
+
+    </LinearLayout>
+
+</FrameLayout>
