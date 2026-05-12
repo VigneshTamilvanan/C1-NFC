@@ -5,6 +5,8 @@ const path    = require('path');
 
 const { router: authRouter } = require('./auth');
 const ticketsRouter           = require('./tickets');
+const validateRouter          = require('./validate');
+const waybillRouter           = require('./waybill');
 
 const app  = express();
 const PORT = process.env.PORT || 3000;
@@ -14,6 +16,8 @@ app.use(express.json());
 
 app.use('/api/auth',    authRouter);
 app.use('/api/transit', ticketsRouter);
+app.use('/api/transit', validateRouter);
+app.use('/api/transit', waybillRouter);
 
 app.use(express.static(path.join(__dirname, '../../dashboard')));
 app.get('/{*path}', (req, res) =>

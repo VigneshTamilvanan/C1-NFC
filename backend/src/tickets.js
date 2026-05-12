@@ -5,7 +5,10 @@ const { requireAuth } = require('./auth');
 const router = express.Router();
 
 router.post('/tap', async (req, res) => {
-  const { txnId, route, source, destination, fare, timestamp } = req.body;
+  const {
+    txnId, route, source, destination, fare, timestamp,
+    tripId, waybillNo, conductorId, paymentMode
+  } = req.body;
   if (!txnId || !fare) return res.status(400).json({ error: 'txnId and fare required' });
 
   const dupe = await pool.query('SELECT ticket_no FROM tickets WHERE txn_id = $1', [txnId]);
@@ -16,9 +19,11 @@ router.post('/tap', async (req, res) => {
   const ticketNo = 'TK-' + String(seq).padStart(5, '0');
 
   await pool.query(
-    `INSERT INTO tickets (ticket_no, txn_id, route, source, destination, fare)
-     VALUES ($1, $2, $3, $4, $5, $6)`,
-    [ticketNo, txnId, route, source, destination, fare]
+    `INSERT INTO tickets
+      (ticket_no, txn_id, waybill_no, trip_id, conductor_id, route, source, destination, fare, payment_mode)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)`,
+    [ticketNo, txnId, waybillNo || null, tripId || null, conductorId || null,
+     route, source, destination, fare, paymentMode || 'UPI']
   );
 
   res.json({ ticketNo, status: 'issued' });
