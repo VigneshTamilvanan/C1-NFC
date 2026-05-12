@@ -15,14 +15,24 @@
         android:label="NFC Test"
         android:theme="@style/Theme.AppCompat.Light"
         android:usesCleartextTraffic="true"
+        android:extractNativeLibs="true"
         tools:replace="android:label">
         <activity
-            android:name="com.test.mvinfc.MainActivity"
+            android:name="com.test.mvinfc.LoginActivity"
             android:exported="true">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
+        <activity
+            android:name="com.test.mvinfc.MainActivity"
+            android:exported="false"/>
+        <activity
+            android:name="com.test.mvinfc.NfcTestActivity"
+            android:exported="false"/>
+        <activity
+            android:name="com.test.mvinfc.WaybillActivity"
+            android:exported="false"/>
     </application>
 </manifest>

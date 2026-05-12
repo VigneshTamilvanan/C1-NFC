@@ -2,10 +2,14 @@ package com.test.mvinfc;
 
 import android.app.Activity;
 import android.content.Intent;
+import android.net.ConnectivityManager;
+import android.net.NetworkInfo;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
 import android.util.Log;
+import android.view.Menu;
+import android.view.MenuItem;
 import android.view.View;
 import android.widget.AdapterView;
 import android.widget.ArrayAdapter;
@@ -14,16 +18,20 @@ import android.widget.EditText;
 import android.widget.Spinner;
 import android.widget.TextView;
 
-import java.io.OutputStream;
-import java.net.HttpURLConnection;
-import java.net.URL;
-import java.nio.charset.StandardCharsets;
+import androidx.work.Constraints;
+import androidx.work.NetworkType;
+import androidx.work.OneTimeWorkRequest;
+import androidx.work.WorkManager;
 
 import com.eze.api.EzeAPI;
 
 import org.json.JSONException;
 import org.json.JSONObject;
 
+import java.io.OutputStream;
+import java.net.HttpURLConnection;
+import java.net.URL;
+import java.nio.charset.StandardCharsets;
 import java.text.SimpleDateFormat;
 import java.util.Arrays;
 import java.util.Date;
@@ -31,12 +39,14 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Scanner;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
 public class MainActivity extends Activity {
 
     private static final String TAG = "NfcTest";
+    static final String BACKEND_URL = "https://movingtech-etm.onrender.com/api/transit/tap";
 
     private static final int REQUEST_CODE_INITIALIZE = 10001;
     private static final int REQUEST_CODE_PAY        = 10016;
@@ -44,9 +54,7 @@ public class MainActivity extends Activity {
     private static final String DEMO_APP_KEY  = "f249e904-1935-4d7a-be63-2a318d6145e7";
     private static final String MERCHANT_NAME = "MOVING_TECH_INNOVATIONS";
     private static final String USER_NAME     = "1411001148";
-    private static final String BACKEND_URL   = "https://beautiful-serenity-production-7473.up.railway.app/api/transit/tap";
 
-    // Route → ordered stops (from Chennai GTFS)
     private static final Map<String, List<String>> ROUTE_STOPS = new LinkedHashMap<>();
     static {
         ROUTE_STOPS.put("21 — Royapuram ↔ Guindy", Arrays.asList(
@@ -88,6 +96,7 @@ public class MainActivity extends Activity {
     private Spinner spinnerRoute, spinnerSource, spinnerDest;
     private EditText inputFare;
     private Button btnStartCollection;
+    private TextView tvConductor;
 
     // Screen 2
     private TextView tapRoute, tapJourney, tapFare;
@@ -107,39 +116,65 @@ public class MainActivity extends Activity {
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
+
+        if (!ConductorAuth.isLoggedIn(this)) {
+            startActivity(new Intent(this, LoginActivity.class));
+            finish();
+            return;
+        }
+
         setContentView(R.layout.activity_main);
 
-        screenTripSetup  = findViewById(R.id.screenTripSetup);
-        screenTap        = findViewById(R.id.screenTap);
-        screenResult     = findViewById(R.id.screenResult);
-
-        spinnerRoute     = findViewById(R.id.spinnerRoute);
-        spinnerSource    = findViewById(R.id.spinnerSource);
-        spinnerDest      = findViewById(R.id.spinnerDest);
-        inputFare        = findViewById(R.id.inputFare);
+        screenTripSetup    = findViewById(R.id.screenTripSetup);
+        screenTap          = findViewById(R.id.screenTap);
+        screenResult       = findViewById(R.id.screenResult);
+        spinnerRoute       = findViewById(R.id.spinnerRoute);
+        spinnerSource      = findViewById(R.id.spinnerSource);
+        spinnerDest        = findViewById(R.id.spinnerDest);
+        inputFare          = findViewById(R.id.inputFare);
         btnStartCollection = findViewById(R.id.btnStartCollection);
+        tvConductor        = findViewById(R.id.tvConductor);
+        tapRoute           = findViewById(R.id.tapRoute);
+        tapJourney         = findViewById(R.id.tapJourney);
+        tapFare            = findViewById(R.id.tapFare);
+        btnPay             = findViewById(R.id.btnPay);
+        btnEditTrip        = findViewById(R.id.btnEditTrip);
+        resultStatus       = findViewById(R.id.resultStatus);
+        resultTicketNo     = findViewById(R.id.resultTicketNo);
+        resultTxnId        = findViewById(R.id.resultTxnId);
+        resultJourney      = findViewById(R.id.resultJourney);
+        btnNextPassenger   = findViewById(R.id.btnNextPassenger);
 
-        tapRoute   = findViewById(R.id.tapRoute);
-        tapJourney = findViewById(R.id.tapJourney);
-        tapFare    = findViewById(R.id.tapFare);
-        btnPay     = findViewById(R.id.btnPay);
-        btnEditTrip = findViewById(R.id.btnEditTrip);
-
-        resultStatus     = findViewById(R.id.resultStatus);
-        resultTicketNo   = findViewById(R.id.resultTicketNo);
-        resultTxnId      = findViewById(R.id.resultTxnId);
-        resultJourney    = findViewById(R.id.resultJourney);
-        btnNextPassenger = findViewById(R.id.btnNextPassenger);
+        String conductorName = ConductorAuth.getLoggedInName(this);
+        String conductorId   = ConductorAuth.getLoggedInId(this);
+        tvConductor.setText(conductorId + " — " + conductorName);
 
         setupRouteSpinner();
-
         btnStartCollection.setOnClickListener(v -> onStartCollection());
         btnPay.setOnClickListener(v -> onPayNow());
         btnEditTrip.setOnClickListener(v -> showScreen(1));
         btnNextPassenger.setOnClickListener(v -> showScreen(2));
 
+        findViewById(R.id.btnLogout).setOnClickListener(v -> {
+            ConductorAuth.logout(this);
+            startActivity(new Intent(this, LoginActivity.class));
+            finish();
+        });
+
+        // End Trip button on tap screen
+        Button btnEndTrip = new Button(this);
+        btnEndTrip.setText("END TRIP");
+        btnEndTrip.setBackgroundColor(0xFFE65100);
+        btnEndTrip.setTextColor(0xFFFFFFFF);
+        btnEndTrip.setOnClickListener(v -> {
+            // Go back to waybill screen — WaybillActivity will call endTrip
+            finish();
+        });
+        ((android.widget.LinearLayout) btnEditTrip.getParent()).addView(btnEndTrip);
+
         showScreen(1);
         initSdk();
+        triggerSync();
     }
 
     private void setupRouteSpinner() {
@@ -148,34 +183,64 @@ public class MainActivity extends Activity {
                 android.R.layout.simple_spinner_item, routeNames);
         routeAdapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
         spinnerRoute.setAdapter(routeAdapter);
-
         spinnerRoute.setOnItemSelectedListener(new AdapterView.OnItemSelectedListener() {
-            @Override
-            public void onItemSelected(AdapterView<?> parent, View view, int pos, long id) {
+            @Override public void onItemSelected(AdapterView<?> p, View v, int pos, long id) {
                 updateStopSpinners(routeNames[pos]);
             }
-            @Override public void onNothingSelected(AdapterView<?> parent) {}
+            @Override public void onNothingSelected(AdapterView<?> p) {}
         });
-
         updateStopSpinners(routeNames[0]);
     }
 
     private void updateStopSpinners(String routeName) {
         List<String> stops = ROUTE_STOPS.get(routeName);
         if (stops == null) return;
-
-        ArrayAdapter<String> stopAdapter = new ArrayAdapter<>(this,
+        ArrayAdapter<String> a = new ArrayAdapter<>(this,
                 android.R.layout.simple_spinner_item, stops);
-        stopAdapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
-
-        spinnerSource.setAdapter(stopAdapter);
-        spinnerDest.setAdapter(new ArrayAdapter<>(this,
-                android.R.layout.simple_spinner_item, stops));
-        ((ArrayAdapter) spinnerDest.getAdapter())
-                .setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
-
+        a.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
+        spinnerSource.setAdapter(a);
+        ArrayAdapter<String> b = new ArrayAdapter<>(this,
+                android.R.layout.simple_spinner_item, stops);
+        b.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
+        spinnerDest.setAdapter(b);
         spinnerSource.setSelection(0);
         spinnerDest.setSelection(stops.size() - 1);
+
+        AdapterView.OnItemSelectedListener fareListener = new AdapterView.OnItemSelectedListener() {
+            @Override public void onItemSelected(AdapterView<?> p, View v, int pos, long id) { fetchFare(); }
+            @Override public void onNothingSelected(AdapterView<?> p) {}
+        };
+        spinnerSource.setOnItemSelectedListener(fareListener);
+        spinnerDest.setOnItemSelectedListener(fareListener);
+        fetchFare();
+    }
+
+    private void fetchFare() {
+        String routeName = spinnerRoute.getSelectedItem() != null ? spinnerRoute.getSelectedItem().toString() : "";
+        String from = spinnerSource.getSelectedItem() != null ? spinnerSource.getSelectedItem().toString() : "";
+        String to   = spinnerDest.getSelectedItem()   != null ? spinnerDest.getSelectedItem().toString()   : "";
+        if (from.isEmpty() || to.isEmpty() || from.equals(to)) return;
+        String routeId = routeName.contains(" — ") ? routeName.split(" — ")[0] : routeName;
+
+        executor.execute(() -> {
+            try {
+                String encodedFrom = java.net.URLEncoder.encode(from, "UTF-8");
+                String encodedTo   = java.net.URLEncoder.encode(to,   "UTF-8");
+                String urlStr = BACKEND_URL.replace("/tap", "/fare") +
+                    "?route=" + routeId + "&from=" + encodedFrom + "&to=" + encodedTo + "&service=ordinary";
+                java.net.URL url = new java.net.URL(urlStr);
+                HttpURLConnection conn = (HttpURLConnection) url.openConnection();
+                conn.setConnectTimeout(5000);
+                conn.setReadTimeout(5000);
+                if (conn.getResponseCode() == 200) {
+                    String resp = new Scanner(conn.getInputStream()).useDelimiter("\\A").next();
+                    String fareVal = new org.json.JSONObject(resp).optString("fare", "");
+                    if (!fareVal.isEmpty()) {
+                        uiHandler.post(() -> inputFare.setText(fareVal));
+                    }
+                }
+            } catch (Exception ignored) {}
+        });
     }
 
     private void onStartCollection() {
@@ -183,18 +248,8 @@ public class MainActivity extends Activity {
         source = spinnerSource.getSelectedItem().toString();
         dest   = spinnerDest.getSelectedItem().toString();
         fare   = inputFare.getText().toString().trim();
-
-        if (fare.isEmpty()) {
-            inputFare.setError("Required");
-            return;
-        }
-        if (source.equals(dest)) {
-            inputFare.setError(null);
-            spinnerSource.requestFocus();
-            return;
-        }
-
-        // Extract short route number (before " — ")
+        if (fare.isEmpty()) { inputFare.setError("Required"); return; }
+        if (source.equals(dest)) { spinnerSource.requestFocus(); return; }
         String shortRoute = route.contains(" — ") ? route.split(" — ")[0] : route;
         tapRoute.setText("Route " + shortRoute);
         tapJourney.setText(source + " → " + dest);
@@ -214,7 +269,6 @@ public class MainActivity extends Activity {
             req.put("captureSignature", "false");
             req.put("prepareDevice",    "false");
             req.put("captureReceipt",   "false");
-            Log.d(TAG, "initSdk: " + req);
             EzeAPI.initialize(this, REQUEST_CODE_INITIALIZE, req);
         } catch (JSONException e) {
             Log.e(TAG, "initSdk error", e);
@@ -222,11 +276,7 @@ public class MainActivity extends Activity {
     }
 
     private void onPayNow() {
-        if (!sdkInitialised) {
-            Log.w(TAG, "SDK not ready — retrying init");
-            initSdk();
-            return;
-        }
+        if (!sdkInitialised) { initSdk(); return; }
         btnPay.setEnabled(false);
         try {
             String shortRoute = route.contains(" — ") ? route.split(" — ")[0] : route;
@@ -234,15 +284,11 @@ public class MainActivity extends Activity {
             refs.put("reference1", "C1-" + System.currentTimeMillis());
             refs.put("reference2", shortRoute);
             refs.put("reference3", source + " to " + dest);
-
             JSONObject options = new JSONObject();
             options.put("references", refs);
-
             JSONObject req = new JSONObject();
             req.put("amount",  fare);
             req.put("options", options);
-
-            Log.d(TAG, "pay(): " + req.toString(2));
             EzeAPI.pay(this, REQUEST_CODE_PAY, req);
         } catch (JSONException e) {
             Log.e(TAG, "pay error", e);
@@ -253,110 +299,116 @@ public class MainActivity extends Activity {
     @Override
     protected void onActivityResult(int requestCode, int resultCode, Intent data) {
         super.onActivityResult(requestCode, resultCode, data);
-        Log.d(TAG, "onActivityResult req=" + requestCode + " result=" + resultCode);
-        if (data != null && data.getExtras() != null) {
-            for (String key : data.getExtras().keySet())
-                Log.d(TAG, "  [" + key + "] = " + data.getExtras().get(key));
-        }
-
         if (requestCode == REQUEST_CODE_INITIALIZE) {
             sdkInitialised = (resultCode == RESULT_OK);
-            Log.d(TAG, "SDK init " + (sdkInitialised ? "OK" : "FAILED"));
             if (sdkInitialised && screenTap.getVisibility() == View.VISIBLE) {
                 tapFare.setText("₹" + fare);
                 btnPay.setEnabled(true);
             }
             return;
         }
-
         if (requestCode == REQUEST_CODE_PAY) {
             btnPay.setEnabled(true);
             String responseJson = data != null ? data.getStringExtra("response") : null;
-            if (resultCode == RESULT_OK) {
-                handlePaymentSuccess(responseJson);
-            } else {
-                handlePaymentFailure(responseJson);
-            }
+            if (resultCode == RESULT_OK) handlePaymentSuccess(responseJson);
+            else handlePaymentFailure(responseJson);
         }
     }
 
     private void handlePaymentSuccess(String responseJson) {
-        String txnId = extractTxnId(responseJson);
+        String txnId       = extractTxnId(responseJson);
+        String conductorId = ConductorAuth.getLoggedInId(this);
+        String timestamp   = new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss'Z'", Locale.US).format(new Date());
+        String shortRoute  = route.contains(" — ") ? route.split(" — ")[0] : route;
+
+        // Save to local DB first (offline-safe)
+        TicketEntity entity = new TicketEntity();
+        entity.txnId       = txnId;
+        entity.route       = shortRoute;
+        entity.source      = source;
+        entity.destination = dest;
+        entity.fare        = fare;
+        entity.conductorId = conductorId;
+        entity.timestamp   = timestamp;
+        entity.synced      = false;
+
         executor.execute(() -> {
-            try {
-                String timestamp = new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss'Z'",
-                        Locale.US).format(new Date());
-                String shortRoute = route.contains(" — ") ? route.split(" — ")[0] : route;
-                JSONObject body = new JSONObject();
-                body.put("txnId",       txnId);
-                body.put("route",       shortRoute);
-                body.put("source",      source);
-                body.put("destination", dest);
-                body.put("fare",        fare);
-                body.put("timestamp",   timestamp);
-                Log.d(TAG, "POST backend: " + body.toString(2));
+            AppDatabase.get(this).ticketDao().insert(entity);
 
-                URL url = new URL(BACKEND_URL);
-                HttpURLConnection conn = (HttpURLConnection) url.openConnection();
-                conn.setRequestMethod("POST");
-                conn.setRequestProperty("Content-Type", "application/json");
-                conn.setDoOutput(true);
-                conn.setConnectTimeout(8000);
-                conn.setReadTimeout(8000);
-                byte[] payload = body.toString().getBytes(StandardCharsets.UTF_8);
-                try (OutputStream os = conn.getOutputStream()) { os.write(payload); }
+            if (isOnline()) {
+                try {
+                    JSONObject body = new JSONObject();
+                    body.put("txnId",       txnId);
+                    body.put("route",       shortRoute);
+                    body.put("source",      source);
+                    body.put("destination", dest);
+                    body.put("fare",        fare);
+                    body.put("conductorId", conductorId);
+                    body.put("timestamp",   timestamp);
+                    body.put("tripId",      WaybillActivity.activeTripId);
+                    body.put("waybillNo",   WaybillActivity.activeWaybillNo);
+                    body.put("paymentMode", "UPI");
 
-                int code = conn.getResponseCode();
-                java.io.InputStream is = (code >= 200 && code < 300)
-                        ? conn.getInputStream() : conn.getErrorStream();
-                String resp = new java.util.Scanner(is).useDelimiter("\\A").next();
-                Log.d(TAG, "Backend response " + code + ": " + resp);
+                    URL url = new URL(BACKEND_URL);
+                    HttpURLConnection conn = (HttpURLConnection) url.openConnection();
+                    conn.setRequestMethod("POST");
+                    conn.setRequestProperty("Content-Type", "application/json");
+                    conn.setDoOutput(true);
+                    conn.setConnectTimeout(8000);
+                    conn.setReadTimeout(8000);
+                    byte[] payload = body.toString().getBytes(StandardCharsets.UTF_8);
+                    try (OutputStream os = conn.getOutputStream()) { os.write(payload); }
 
-                if (code == 200 || code == 201) {
-                    JSONObject respObj = new JSONObject(resp);
-                    String ticketNo = respObj.optString("ticketNo", "TK-?????");
-                    uiHandler.post(() -> showResultScreen(true, null, ticketNo, txnId));
-                } else {
-                    uiHandler.post(() -> showResultScreen(false, "Backend error " + code, null, txnId));
+                    int code = conn.getResponseCode();
+                    if (code == 200 || code == 201) {
+                        java.io.InputStream is = conn.getInputStream();
+                        String resp    = new Scanner(is).useDelimiter("\\A").next();
+                        String ticketNo = new JSONObject(resp).optString("ticketNo", "TK-?????");
+                        // Mark synced in DB
+                        TicketEntity[] pending = AppDatabase.get(this).ticketDao().getPending()
+                                .stream().filter(t -> t.txnId.equals(txnId)).toArray(TicketEntity[]::new);
+                        if (pending.length > 0) {
+                            pending[0].synced   = true;
+                            pending[0].ticketNo = ticketNo;
+                            AppDatabase.get(this).ticketDao().update(pending[0]);
+                        }
+                        uiHandler.post(() -> showResultScreen(true, null, ticketNo, txnId));
+                    } else {
+                        uiHandler.post(() -> showResultScreen(true, null, "TK-PENDING", txnId));
+                    }
+                } catch (Exception e) {
+                    Log.e(TAG, "Backend POST error", e);
+                    uiHandler.post(() -> showResultScreen(true, null, "TK-PENDING", txnId));
                 }
-            } catch (Exception e) {
-                Log.e(TAG, "Backend error", e);
-                uiHandler.post(() -> showResultScreen(false, "Backend error", null, null));
+            } else {
+                // Offline — show pending, sync later
+                triggerSync();
+                uiHandler.post(() -> showResultScreen(true, null, "TK-PENDING", txnId));
             }
         });
     }
 
     private void handlePaymentFailure(String responseJson) {
-        String errorMsg = "Payment failed";
+        String errorMsg  = "Payment failed";
         String errorCode = "";
         if (responseJson != null) {
             try {
                 JSONObject root = new JSONObject(responseJson);
-                JSONObject err = root.optJSONObject("error");
+                JSONObject err  = root.optJSONObject("error");
                 if (err != null) {
-                    errorMsg = err.optString("message", errorMsg);
+                    errorMsg  = err.optString("message", errorMsg);
                     errorCode = err.optString("code", "");
                 }
-                // also check top-level externalError
                 String ext = root.optString("externalError", "");
                 if (!ext.isEmpty()) errorCode = ext;
             } catch (JSONException ignored) {}
         }
-        Log.w(TAG, "Payment failed code=" + errorCode + " msg=" + errorMsg);
-
         boolean isSessionError = errorCode.contains("SESSION") || errorCode.contains("LOGIN")
                 || errorMsg.toLowerCase().contains("login") || errorMsg.toLowerCase().contains("session");
-
         if (isSessionError) {
             sdkInitialised = false;
-            Log.w(TAG, "Session lost — reinitialising SDK");
             initSdk();
-            // Go back to tap screen so user can retry immediately after reinit
-            uiHandler.postDelayed(() -> {
-                btnPay.setEnabled(true);
-                showScreen(2);
-            }, 2500);
-            // Brief toast-style feedback via tapFare field
+            uiHandler.postDelayed(() -> { btnPay.setEnabled(true); showScreen(2); }, 2500);
             tapFare.setText("Re-logging in…");
         } else {
             showResultScreen(false, errorMsg, null, null);
@@ -366,9 +418,10 @@ public class MainActivity extends Activity {
     private void showResultScreen(boolean success, String errorMsg, String ticketNo, String txnId) {
         String shortRoute = route.contains(" — ") ? route.split(" — ")[0] : route;
         if (success) {
-            resultStatus.setText("✅ TICKET ISSUED");
+            boolean pending = "TK-PENDING".equals(ticketNo);
+            resultStatus.setText(pending ? "✅ SAVED (syncing…)" : "✅ TICKET ISSUED");
             resultStatus.setTextColor(0xFF2E7D32);
-            resultTicketNo.setText("Ticket #: " + ticketNo);
+            resultTicketNo.setText(pending ? "Will sync when online" : "Ticket #: " + ticketNo);
             resultTxnId.setText("Txn: " + (txnId != null ? txnId : "—"));
             resultJourney.setText(shortRoute + "  |  " + source + " → " + dest + "  |  ₹" + fare);
         } else {
@@ -381,12 +434,28 @@ public class MainActivity extends Activity {
         showScreen(3);
     }
 
+    private void triggerSync() {
+        Constraints constraints = new Constraints.Builder()
+                .setRequiredNetworkType(NetworkType.CONNECTED)
+                .build();
+        OneTimeWorkRequest syncRequest = new OneTimeWorkRequest.Builder(SyncWorker.class)
+                .setConstraints(constraints)
+                .build();
+        WorkManager.getInstance(this).enqueue(syncRequest);
+    }
+
+    private boolean isOnline() {
+        ConnectivityManager cm = (ConnectivityManager) getSystemService(CONNECTIVITY_SERVICE);
+        NetworkInfo ni = cm.getActiveNetworkInfo();
+        return ni != null && ni.isConnected();
+    }
+
     private String extractTxnId(String responseJson) {
-        if (responseJson == null) return "unknown";
+        if (responseJson == null) return "TXN-" + System.currentTimeMillis();
         try {
             JSONObject result = new JSONObject(responseJson).optJSONObject("result");
             if (result != null) {
-                for (String key : new String[]{"txnId","transactionId","id"}) {
+                for (String key : new String[]{"txnId", "transactionId", "id"}) {
                     String v = result.optString(key, null);
                     if (v != null && !v.isEmpty()) return v;
                 }
