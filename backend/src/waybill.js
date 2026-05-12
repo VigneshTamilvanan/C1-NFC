@@ -74,7 +74,7 @@ router.get('/waybill/conductor/:staffNo', async (req, res) => {
        LEFT JOIN trips t ON t.waybill_no = w.waybill_no
        WHERE w.conductor_staff_no = $1
          AND w.duty_date = CURRENT_DATE
-         AND w.status = 'open'
+         AND w.status IN ('open', 'active')
        GROUP BY w.id
        ORDER BY w.created_at DESC
        LIMIT 1`,

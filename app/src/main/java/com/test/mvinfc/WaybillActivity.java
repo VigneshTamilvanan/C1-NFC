@@ -54,27 +54,38 @@ public class WaybillActivity extends Activity {
             return;
         }
 
+        int dp8  = Math.round(8  * getResources().getDisplayMetrics().density);
+        int dp12 = Math.round(12 * getResources().getDisplayMetrics().density);
+        int dp16 = Math.round(16 * getResources().getDisplayMetrics().density);
+        int dp20 = Math.round(20 * getResources().getDisplayMetrics().density);
+        int dp24 = Math.round(24 * getResources().getDisplayMetrics().density);
+
         ScrollView scroll = new ScrollView(this);
         LinearLayout root = new LinearLayout(this);
         root.setOrientation(LinearLayout.VERTICAL);
-        root.setPadding(32, 32, 32, 32);
-        root.setBackgroundColor(Color.parseColor("#F5F5F5"));
+        root.setPadding(dp16, dp20, dp16, dp20);
+        root.setBackgroundColor(Color.parseColor("#ECEFF1"));
 
-        // Header
+        // ── Header bar ─────────────────────────────────────────────────────
         LinearLayout header = new LinearLayout(this);
         header.setOrientation(LinearLayout.HORIZONTAL);
+        header.setBackgroundColor(Color.parseColor("#1A237E"));
+        header.setPadding(dp16, dp12, dp16, dp12);
+        header.setGravity(Gravity.CENTER_VERTICAL);
+
         TextView tvTitle = new TextView(this);
-        tvTitle.setText("Chennai One — ETM");
-        tvTitle.setTextSize(20);
-        tvTitle.setTextColor(Color.parseColor("#1A237E"));
+        tvTitle.setText("Moving Tech ETM");
+        tvTitle.setTextSize(22);
+        tvTitle.setTextColor(Color.WHITE);
         tvTitle.setTypeface(null, android.graphics.Typeface.BOLD);
         tvTitle.setLayoutParams(new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f));
 
         Button btnLogout = new Button(this);
         btnLogout.setText("Logout");
-        btnLogout.setTextSize(12);
+        btnLogout.setTextSize(14);
         btnLogout.setBackgroundColor(Color.parseColor("#B71C1C"));
         btnLogout.setTextColor(Color.WHITE);
+        btnLogout.setPadding(dp16, dp8, dp16, dp8);
         btnLogout.setOnClickListener(v -> {
             ConductorAuth.logout(this);
             startActivity(new Intent(this, LoginActivity.class));
@@ -83,34 +94,59 @@ public class WaybillActivity extends Activity {
         header.addView(tvTitle);
         header.addView(btnLogout);
 
+        // ── Conductor info card ─────────────────────────────────────────────
+        LinearLayout conductorCard = new LinearLayout(this);
+        conductorCard.setOrientation(LinearLayout.VERTICAL);
+        conductorCard.setBackgroundColor(Color.WHITE);
+        conductorCard.setPadding(dp16, dp12, dp16, dp12);
+        LinearLayout.LayoutParams cardLp = new LinearLayout.LayoutParams(
+            LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT);
+        cardLp.setMargins(0, dp12, 0, 0);
+        conductorCard.setLayoutParams(cardLp);
+
         TextView tvConductor = new TextView(this);
-        tvConductor.setText(ConductorAuth.getLoggedInId(this) + " — " + ConductorAuth.getLoggedInName(this));
-        tvConductor.setTextSize(13);
-        tvConductor.setTextColor(Color.parseColor("#555555"));
+        tvConductor.setText(ConductorAuth.getLoggedInId(this) + "  —  " + ConductorAuth.getLoggedInName(this));
+        tvConductor.setTextSize(18);
+        tvConductor.setTextColor(Color.parseColor("#1A237E"));
+        tvConductor.setTypeface(null, android.graphics.Typeface.BOLD);
 
         tvWaybillInfo = new TextView(this);
-        tvWaybillInfo.setTextSize(13);
+        tvWaybillInfo.setTextSize(15);
         tvWaybillInfo.setTextColor(Color.parseColor("#444444"));
-        tvWaybillInfo.setPadding(0, 16, 0, 8);
+        tvWaybillInfo.setPadding(0, dp8, 0, 0);
 
+        conductorCard.addView(tvConductor);
+        conductorCard.addView(tvWaybillInfo);
+
+        // ── Status / section label ──────────────────────────────────────────
         tvStatus = new TextView(this);
-        tvStatus.setTextSize(14);
-        tvStatus.setTextColor(Color.parseColor("#888888"));
+        tvStatus.setTextSize(16);
+        tvStatus.setTextColor(Color.parseColor("#607D8B"));
         tvStatus.setText("Loading waybill…");
+        LinearLayout.LayoutParams statusLp = new LinearLayout.LayoutParams(
+            LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT);
+        statusLp.setMargins(0, dp16, 0, dp8);
+        tvStatus.setLayoutParams(statusLp);
 
+        // ── Trip list container ─────────────────────────────────────────────
         tripListContainer = new LinearLayout(this);
         tripListContainer.setOrientation(LinearLayout.VERTICAL);
 
+        // ── Close waybill button ────────────────────────────────────────────
         btnCloseWaybill = new Button(this);
         btnCloseWaybill.setText("CLOSE WAYBILL");
+        btnCloseWaybill.setTextSize(16);
         btnCloseWaybill.setBackgroundColor(Color.parseColor("#B71C1C"));
         btnCloseWaybill.setTextColor(Color.WHITE);
+        LinearLayout.LayoutParams closeLp = new LinearLayout.LayoutParams(
+            LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT);
+        closeLp.setMargins(0, dp16, 0, 0);
+        btnCloseWaybill.setLayoutParams(closeLp);
         btnCloseWaybill.setVisibility(View.GONE);
         btnCloseWaybill.setOnClickListener(v -> closeWaybill());
 
         root.addView(header);
-        root.addView(tvConductor);
-        root.addView(tvWaybillInfo);
+        root.addView(conductorCard);
         root.addView(tvStatus);
         root.addView(tripListContainer);
         root.addView(btnCloseWaybill);
@@ -169,12 +205,12 @@ public class WaybillActivity extends Activity {
         try {
             tvWaybillInfo.setText(
                 "Waybill: " + wb.optString("waybill_no") +
-                "  |  Route: " + wb.optString("route_no") +
-                "  |  Fleet: " + wb.optString("fleet_no") +
+                "\nRoute: " + wb.optString("route_no") +
+                "   Fleet: " + wb.optString("fleet_no") +
                 "\nShift: " + wb.optString("shift") +
-                "  |  Driver: " + wb.optString("driver_name")
+                "   Driver: " + wb.optString("driver_name")
             );
-            tvStatus.setText("Trips today:");
+            tvStatus.setText("TRIPS TODAY");
 
             tripListContainer.removeAllViews();
             boolean allClosed = true;
@@ -196,9 +232,20 @@ public class WaybillActivity extends Activity {
                 if (!"closed".equals(status)) allClosed = false;
                 if ("active".equals(status))  anyActive = true;
 
-                LinearLayout row = new LinearLayout(this);
-                row.setOrientation(LinearLayout.HORIZONTAL);
-                row.setPadding(0, 12, 0, 12);
+                int dpx8  = Math.round(8  * getResources().getDisplayMetrics().density);
+                int dpx12 = Math.round(12 * getResources().getDisplayMetrics().density);
+                int dpx16 = Math.round(16 * getResources().getDisplayMetrics().density);
+
+                // Card wrapper
+                LinearLayout card = new LinearLayout(this);
+                card.setOrientation(LinearLayout.HORIZONTAL);
+                card.setBackgroundColor(Color.WHITE);
+                card.setPadding(dpx16, dpx16, dpx16, dpx16);
+                card.setGravity(Gravity.CENTER_VERTICAL);
+                LinearLayout.LayoutParams cardMargin = new LinearLayout.LayoutParams(
+                    LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT);
+                cardMargin.setMargins(0, 0, 0, dpx8);
+                card.setLayoutParams(cardMargin);
 
                 LinearLayout info = new LinearLayout(this);
                 info.setOrientation(LinearLayout.VERTICAL);
@@ -206,27 +253,30 @@ public class WaybillActivity extends Activity {
 
                 TextView tvTrip = new TextView(this);
                 tvTrip.setText("Trip " + tripNo);
-                tvTrip.setTextSize(16);
+                tvTrip.setTextSize(20);
                 tvTrip.setTextColor(Color.parseColor("#1A237E"));
                 tvTrip.setTypeface(null, android.graphics.Typeface.BOLD);
 
                 TextView tvTripInfo = new TextView(this);
                 String statusLabel = "pending".equals(status) ? "Not started" :
                                      "active".equals(status)  ? "🟢 In progress" : "✅ Closed";
-                tvTripInfo.setText(statusLabel + ("closed".equals(status) ? "  |  " + pax + " pax  |  ₹" + (int)revenue : ""));
-                tvTripInfo.setTextSize(13);
-                tvTripInfo.setTextColor(Color.parseColor("#666666"));
+                tvTripInfo.setText(statusLabel + ("closed".equals(status) ? "   " + pax + " pax   ₹" + (int)revenue : ""));
+                tvTripInfo.setTextSize(16);
+                tvTripInfo.setTextColor(Color.parseColor("#555555"));
+                tvTripInfo.setPadding(0, dpx8, 0, 0);
 
                 info.addView(tvTrip);
                 info.addView(tvTripInfo);
 
                 Button btn = new Button(this);
+                btn.setTextSize(16);
+                btn.setTypeface(null, android.graphics.Typeface.BOLD);
+                btn.setPadding(dpx16, dpx12, dpx16, dpx12);
                 if ("pending".equals(status)) {
                     btn.setText("BEGIN");
                     btn.setBackgroundColor(Color.parseColor("#2E7D32"));
                     btn.setTextColor(Color.WHITE);
-                    btn.setEnabled(!anyActive); // only one trip active at a time
-                    int finalI = i;
+                    btn.setEnabled(!anyActive);
                     btn.setOnClickListener(v -> beginTrip(tripId, tripNo));
                 } else if ("active".equals(status)) {
                     btn.setText("END TRIP");
@@ -240,18 +290,9 @@ public class WaybillActivity extends Activity {
                     btn.setTextColor(Color.WHITE);
                 }
 
-                row.addView(info);
-                row.addView(btn);
-
-                // Divider
-                View divider = new View(this);
-                divider.setBackgroundColor(Color.parseColor("#DDDDDD"));
-                LinearLayout.LayoutParams dp = new LinearLayout.LayoutParams(
-                    LinearLayout.LayoutParams.MATCH_PARENT, 1);
-                divider.setLayoutParams(dp);
-
-                tripListContainer.addView(row);
-                tripListContainer.addView(divider);
+                card.addView(info);
+                card.addView(btn);
+                tripListContainer.addView(card);
             }
 
             btnCloseWaybill.setVisibility(allClosed ? View.VISIBLE : View.GONE);

@@ -12,7 +12,7 @@
     </queries>
 
     <application
-        android:label="NFC Test"
+        android:label="Moving Tech ETM"
         android:theme="@style/Theme.AppCompat.Light"
         android:usesCleartextTraffic="true"
         android:extractNativeLibs="true"
