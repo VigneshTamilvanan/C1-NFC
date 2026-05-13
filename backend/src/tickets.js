@@ -7,7 +7,7 @@ const router = express.Router();
 router.post('/tap', async (req, res) => {
   const {
     txnId, route, source, destination, fare, timestamp,
-    tripId, waybillNo, conductorId, paymentMode
+    tripId, waybillNo, conductorId, paymentMode, passengerCount
   } = req.body;
   if (!txnId || !fare) return res.status(400).json({ error: 'txnId and fare required' });
 
@@ -17,13 +17,14 @@ router.post('/tap', async (req, res) => {
   const countRes = await pool.query('SELECT COUNT(*) FROM tickets');
   const seq = parseInt(countRes.rows[0].count, 10) + 1;
   const ticketNo = 'TK-' + String(seq).padStart(5, '0');
+  const pax = parseInt(passengerCount || 1, 10);
 
   await pool.query(
     `INSERT INTO tickets
-      (ticket_no, txn_id, waybill_no, trip_id, conductor_id, route, source, destination, fare, payment_mode)
-     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)`,
+      (ticket_no, txn_id, waybill_no, trip_id, conductor_id, route, source, destination, fare, payment_mode, passenger_count)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)`,
     [ticketNo, txnId, waybillNo || null, tripId || null, conductorId || null,
-     route, source, destination, fare, paymentMode || 'UPI']
+     route, source, destination, fare, paymentMode || 'CARD', pax]
   );
 
   res.json({ ticketNo, status: 'issued' });
