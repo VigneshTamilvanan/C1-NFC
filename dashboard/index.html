@@ -332,7 +332,9 @@ tr:hover td{background:#f5f7ff}
 </div>
 
 <script>
-const API = '';
+const API = (location.hostname === 'localhost' || location.hostname === '127.0.0.1')
+  ? 'https://movingtech-etm.onrender.com'
+  : '';
 let token = null, userRole = null, userDepot = null, userName = null;
 let allTickets = [], ticketPage = 1;
 const PER = 25;
