@@ -582,47 +582,138 @@ async function submitWaybill() {
 }
 
 // ── Waybill Detail Modal ──────────────────────────────────────────────────
+let _modalWaybillNo = null;
+
 async function openWaybillModal(waybillNo) {
+  _modalWaybillNo = waybillNo;
   document.getElementById('wbModal').classList.add('open');
   document.getElementById('modalTitle').textContent = 'Waybill ' + waybillNo;
+  await renderModal(waybillNo);
+}
+
+async function renderModal(waybillNo) {
   document.getElementById('modalBody').innerHTML = '<p style="color:#888;padding:20px">Loading...</p>';
   try {
-    const res = await authFetch('/api/transit/waybill/' + waybillNo);
-    if (!res.ok) { document.getElementById('modalBody').innerHTML = '<p style="color:#c62828">Error loading</p>'; return; }
-    const w = await res.json();
+    const [wbRes, tkRes] = await Promise.all([
+      authFetch('/api/transit/waybill/' + waybillNo),
+      authFetch('/api/transit/tickets?limit=500')
+    ]);
+    if (!wbRes.ok) { document.getElementById('modalBody').innerHTML = '<p style="color:#c62828">Error loading</p>'; return; }
+    const w = await wbRes.json();
     const trips = w.trips || [];
 
+    // Live ticket counts per trip
+    const allTk = tkRes.ok ? (await tkRes.json()).tickets || [] : [];
+    const tkByTrip = {};
+    allTk.filter(t => t.waybill_no === waybillNo).forEach(t => {
+      if (!tkByTrip[t.trip_id]) tkByTrip[t.trip_id] = {pax:0,cash:0,upi:0,ncmc:0,total:0};
+      const fare = parseFloat(t.fare||0);
+      tkByTrip[t.trip_id].pax++;
+      tkByTrip[t.trip_id].total += fare;
+      const m = (t.payment_mode||'').toUpperCase();
+      if (m==='CASH') tkByTrip[t.trip_id].cash += fare;
+      else if (m==='UPI') tkByTrip[t.trip_id].upi += fare;
+      else if (m==='NCMC') tkByTrip[t.trip_id].ncmc += fare;
+    });
+
+    // Merge live counts with trip record (prefer live for active trips)
+    const tripRows = trips.map(t => {
+      const live = tkByTrip[t.trip_id] || null;
+      const isActive = t.status === 'active';
+      const pax   = isActive && live ? live.pax   : (t.passenger_count||0);
+      const cash  = isActive && live ? live.cash  : parseFloat(t.cash_amount||0);
+      const upi   = isActive && live ? live.upi   : parseFloat(t.upi_amount||0);
+      const ncmc  = isActive && live ? live.ncmc  : parseFloat(t.ncmc_amount||0);
+      const total = isActive && live ? live.total : parseFloat(t.total_amount||0);
+
+      const endBtn = isActive
+        ? `<button class="btn btn-danger btn-sm" onclick="confirmEndTrip('${t.trip_id}',${t.trip_no})">End Trip</button>`
+        : '';
+
+      return `
+        <div class="trip-row" style="grid-template-columns:70px 110px 50px repeat(4,80px) 110px">
+          <div><b>Trip ${t.trip_no}</b></div>
+          <div><span class="badge badge-${t.status}">${t.status}</span></div>
+          <div>${pax}${isActive&&live?' *':''}</div>
+          <div>&#8377;${fmtNum(cash)}</div>
+          <div>&#8377;${fmtNum(upi)}</div>
+          <div>&#8377;${fmtNum(ncmc)}</div>
+          <div><b>&#8377;${fmtNum(total)}</b></div>
+          <div>${endBtn}</div>
+        </div>`;
+    }).join('') || '<div style="color:#aaa;padding:12px 0">No trips yet</div>';
+
+    const totalPax = trips.reduce((s,t) => {
+      const live = tkByTrip[t.trip_id];
+      return s + (t.status==='active'&&live ? live.pax : (t.passenger_count||0));
+    }, 0);
+    const totalRev = trips.reduce((s,t) => {
+      const live = tkByTrip[t.trip_id];
+      return s + (t.status==='active'&&live ? live.total : parseFloat(t.total_amount||0));
+    }, 0);
+
+    const hasActive = trips.some(t => t.status === 'active');
+    const allClosed = trips.length > 0 && trips.every(t => t.status === 'closed');
+    const closeWaybillBtn = allClosed && w.status !== 'closed'
+      ? `<button class="btn btn-danger" onclick="confirmCloseWaybill('${waybillNo}')" style="margin-top:16px;width:100%">Close Waybill</button>`
+      : '';
+
     document.getElementById('modalBody').innerHTML = `
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:20px">
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:20px;font-size:13px">
         <div><b>Conductor:</b> ${w.conductor_name} (${w.conductor_staff_no})</div>
-        <div><b>Driver:</b> ${w.driver_name} (${w.driver_staff_no||'—'})</div>
-        <div><b>Route:</b> ${w.route_no}  &nbsp; <b>Fleet:</b> ${w.fleet_no}</div>
-        <div><b>Shift:</b> ${w.shift}  &nbsp; <b>Date:</b> ${w.duty_date}</div>
-        <div><b>Schedule:</b> ${w.bus_schedule_no||'—'}  &nbsp; <b>Start:</b> ${w.schedule_start_time||'—'}</div>
+        <div><b>Driver:</b> ${w.driver_name||'—'} (${w.driver_staff_no||'—'})</div>
+        <div><b>Route:</b> ${w.route_no} &nbsp; <b>Fleet:</b> ${w.fleet_no||'—'}</div>
+        <div><b>Shift:</b> ${w.shift} &nbsp; <b>Date:</b> ${(w.duty_date||'').slice(0,10)}</div>
+        <div><b>Schedule:</b> ${w.bus_schedule_no||'—'} &nbsp; <b>Start:</b> ${w.schedule_start_time||'—'}</div>
         <div><b>Status:</b> <span class="badge badge-${w.status}">${w.status}</span></div>
       </div>
 
-      <h3 style="font-size:13px;font-weight:700;margin-bottom:12px;text-transform:uppercase;letter-spacing:.4px;color:#888">Trip Breakdown</h3>
-      <div class="trip-row header">
-        <div>Trip</div><div>Status</div><div>Pax</div><div>Cash</div><div>UPI</div><div>NCMC</div><div>Total</div>
+      <h3 style="font-size:12px;font-weight:700;margin-bottom:10px;text-transform:uppercase;letter-spacing:.4px;color:#888">
+        Trip Breakdown ${hasActive ? '<span style="font-weight:400;color:#aaa">&nbsp;* live count</span>' : ''}
+      </h3>
+      <div class="trip-row header" style="grid-template-columns:70px 110px 50px repeat(4,80px) 110px">
+        <div>Trip</div><div>Status</div><div>Pax</div><div>Cash</div><div>UPI</div><div>NCMC</div><div>Total</div><div></div>
       </div>
-      ${trips.map(t => `
-        <div class="trip-row">
-          <div><b>Trip ${t.trip_no}</b></div>
-          <div><span class="badge badge-${t.status}">${t.status}</span></div>
-          <div>${t.passenger_count||0}</div>
-          <div>&#8377;${fmtNum(t.cash_amount||0)}</div>
-          <div>&#8377;${fmtNum(t.upi_amount||0)}</div>
-          <div>&#8377;${fmtNum(t.ncmc_amount||0)}</div>
-          <div><b>&#8377;${fmtNum(t.total_amount||0)}</b></div>
-        </div>`).join('') || '<div style="color:#aaa;padding:12px 0">No trips yet</div>'}
+      ${tripRows}
 
-      <div style="margin-top:16px;padding-top:16px;border-top:2px solid #1A237E;display:grid;grid-template-columns:1fr 1fr;gap:8px">
-        <div><b>Total Passengers:</b> ${trips.reduce((s,t)=>s+(t.passenger_count||0),0)}</div>
-        <div><b>Total Revenue:</b> &#8377;${fmtNum(trips.reduce((s,t)=>s+parseFloat(t.total_amount||0),0))}</div>
+      <div style="margin-top:16px;padding-top:14px;border-top:2px solid #1A237E;display:grid;grid-template-columns:1fr 1fr;gap:8px;font-size:13px">
+        <div><b>Total Passengers:</b> ${totalPax}</div>
+        <div><b>Total Revenue:</b> &#8377;${fmtNum(totalRev)}</div>
       </div>
+      ${closeWaybillBtn}
     `;
-  } catch(e){ document.getElementById('modalBody').innerHTML = '<p style="color:#c62828">Network error</p>'; }
+  } catch(e) { document.getElementById('modalBody').innerHTML = '<p style="color:#c62828">Network error</p>'; }
+}
+
+function confirmEndTrip(tripId, tripNo) {
+  if (!confirm(`End Trip ${tripNo}?\n\nThis will finalize ticket counts and revenue for this trip.`)) return;
+  doEndTrip(tripId);
+}
+
+async function doEndTrip(tripId) {
+  try {
+    const res = await authFetch('/api/transit/trip/end', {
+      method: 'POST',
+      body: JSON.stringify({tripId})
+    });
+    if (!res.ok) { alert('Failed to end trip'); return; }
+    await renderModal(_modalWaybillNo);
+    loadBoard && loadBoard();
+  } catch(e) { alert('Network error'); }
+}
+
+function confirmCloseWaybill(waybillNo) {
+  if (!confirm('Close this waybill?\n\nAll trips must be ended first. This action cannot be undone.')) return;
+  doCloseWaybill(waybillNo);
+}
+
+async function doCloseWaybill(waybillNo) {
+  try {
+    const res = await authFetch('/api/transit/waybill/' + waybillNo + '/close', {method:'POST', body:'{}'});
+    if (!res.ok) { alert('Failed to close waybill'); return; }
+    await renderModal(waybillNo);
+    loadBoard && loadBoard();
+  } catch(e) { alert('Network error'); }
 }
 
 function closeModal() { document.getElementById('wbModal').classList.remove('open'); }
