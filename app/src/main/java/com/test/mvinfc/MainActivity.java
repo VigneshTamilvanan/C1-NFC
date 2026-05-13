@@ -44,7 +44,7 @@ import java.util.Scanner;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
-public class MainActivity extends Activity {
+public class MainActivity extends androidx.appcompat.app.AppCompatActivity {
 
     private static final String TAG = "NfcTest";
     static final String BACKEND_URL = "https://movingtech-etm.onrender.com/api/transit/tap";
@@ -93,6 +93,7 @@ public class MainActivity extends Activity {
     // Screens
     private View screenTripSetup, screenTap, screenResult, screenQr;
     private static final int REQUEST_CODE_SCAN = 10099;
+    private androidx.activity.result.ActivityResultLauncher<com.journeyapps.barcodescanner.ScanOptions> qrLauncher;
 
     // Screen 1
     private Spinner spinnerRoute, spinnerSource, spinnerDest;
@@ -111,6 +112,7 @@ public class MainActivity extends Activity {
 
     // Trip state
     private String route, source, dest, fare;
+    private int passengerCount = 1;
 
     private boolean sdkInitialised = false;
     private final ExecutorService executor = Executors.newSingleThreadExecutor();
@@ -119,6 +121,18 @@ public class MainActivity extends Activity {
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
+
+        qrLauncher = registerForActivityResult(new com.journeyapps.barcodescanner.ScanContract(), result -> {
+            android.util.Log.d("QR_SCAN", "launcher callback: contents=" + result.getContents());
+            if (result.getContents() != null) {
+                showScreen(4);
+                validateQrContent(result.getContents());
+            } else {
+                android.util.Log.d("QR_SCAN", "scan cancelled or null");
+                Toast.makeText(this, "Scan cancelled", Toast.LENGTH_SHORT).show();
+                showScreen(4);
+            }
+        });
 
         if (!ConductorAuth.isLoggedIn(this)) {
             startActivity(new Intent(this, LoginActivity.class));
@@ -180,16 +194,32 @@ public class MainActivity extends Activity {
         btnStartCollection.setOnClickListener(v -> onStartCollection());
         btnPay.setOnClickListener(v -> onPayNow());
         btnEditTrip.setOnClickListener(v -> showScreen(1));
-        btnNextPassenger.setOnClickListener(v -> showScreen(2));
-        findViewById(R.id.btnValidateQr).setOnClickListener(v -> showScreen(4));
-        findViewById(R.id.btnScanQr).setOnClickListener(v -> launchQrScanner());
-        findViewById(R.id.btnCheckQr).setOnClickListener(v -> {
-            String content = ((android.widget.EditText) findViewById(R.id.inputQrContent))
-                .getText().toString().trim();
-            validateQrContent(content);
+        btnNextPassenger.setOnClickListener(v -> {
+            passengerCount = 1;
+            ((TextView) findViewById(R.id.tvPassCount)).setText("1");
+            showScreen(2);
         });
+        TextView tvPassCount = findViewById(R.id.tvPassCount);
+        findViewById(R.id.btnPassMinus).setOnClickListener(v -> {
+            if (passengerCount > 1) {
+                passengerCount--;
+                tvPassCount.setText(String.valueOf(passengerCount));
+                updateFareButton();
+            }
+        });
+        findViewById(R.id.btnPassPlus).setOnClickListener(v -> {
+            if (passengerCount < 10) {
+                passengerCount++;
+                tvPassCount.setText(String.valueOf(passengerCount));
+                updateFareButton();
+            }
+        });
+        findViewById(R.id.btnValidateQr).setOnClickListener(v -> {
+            showScreen(4);
+            launchQrScanner();
+        });
+        findViewById(R.id.btnScanQr).setOnClickListener(v -> launchQrScanner());
         findViewById(R.id.btnQrBack).setOnClickListener(v -> {
-            ((android.widget.EditText) findViewById(R.id.inputQrContent)).setText("");
             findViewById(R.id.qrResultCard).setVisibility(View.GONE);
             showScreen(1);
         });
@@ -278,7 +308,7 @@ public class MainActivity extends Activity {
                     if (!fareVal.isEmpty()) {
                         uiHandler.post(() -> {
                             inputFare.setText(fareVal);
-                            btnStartCollection.setText("TAP PAY  ₹" + fareVal);
+                            updateFareButton();
                         });
                     }
                 }
@@ -286,10 +316,23 @@ public class MainActivity extends Activity {
         });
     }
 
+    private void updateFareButton() {
+        String fareStr = inputFare.getText().toString().trim();
+        if (fareStr.isEmpty()) return;
+        try {
+            double perPax = Double.parseDouble(fareStr);
+            double total  = perPax * passengerCount;
+            String label  = passengerCount > 1
+                ? "TAP PAY  ₹" + String.format("%.0f", total) + " (" + passengerCount + " pax)"
+                : "TAP PAY  ₹" + String.format("%.0f", total);
+            btnStartCollection.setText(label);
+        } catch (Exception ignored) {}
+    }
+
     private void onStartCollection() {
-        route  = spinnerRoute.getSelectedItem().toString();
-        source = spinnerSource.getSelectedItem().toString();
-        dest   = spinnerDest.getSelectedItem().toString();
+        route  = WaybillActivity.activeRouteNo != null ? WaybillActivity.activeRouteNo : "";
+        source = spinnerSource.getSelectedItem() != null ? spinnerSource.getSelectedItem().toString() : "";
+        dest   = spinnerDest.getSelectedItem()   != null ? spinnerDest.getSelectedItem().toString()   : "";
         fare   = inputFare.getText().toString().trim();
         if (fare.isEmpty()) { inputFare.setError("Required"); return; }
         if (source.equals(dest)) { spinnerSource.requestFocus(); return; }
@@ -323,15 +366,17 @@ public class MainActivity extends Activity {
         if (!sdkInitialised) { initSdk(); return; }
         btnPay.setEnabled(false);
         try {
-            String shortRoute = route.contains(" — ") ? route.split(" — ")[0] : route;
+            String shortRoute = (route != null && route.contains(" — ")) ? route.split(" — ")[0] : (route != null ? route : "");
             JSONObject refs = new JSONObject();
             refs.put("reference1", "C1-" + System.currentTimeMillis());
             refs.put("reference2", shortRoute);
             refs.put("reference3", source + " to " + dest);
             JSONObject options = new JSONObject();
             options.put("references", refs);
+            double perPax = Double.parseDouble(fare.isEmpty() ? "0" : fare);
+            double total  = perPax * passengerCount;
             JSONObject req = new JSONObject();
-            req.put("amount",  fare);
+            req.put("amount",  String.valueOf(total));
             req.put("options", options);
             EzeAPI.pay(this, REQUEST_CODE_PAY, req);
         } catch (JSONException e) {
@@ -354,23 +399,52 @@ public class MainActivity extends Activity {
         if (requestCode == REQUEST_CODE_PAY) {
             btnPay.setEnabled(true);
             String responseJson = data != null ? data.getStringExtra("response") : null;
+            android.util.Log.d("PAY_RESULT", "requestCode=" + requestCode + " resultCode=" + resultCode + " data=" + data + " response=" + responseJson);
             if (resultCode == RESULT_OK) handlePaymentSuccess(responseJson);
-            else handlePaymentFailure(responseJson);
+            else {
+                // Ezetap SDK may return non-RESULT_OK even on success — check response JSON
+                if (responseJson != null) {
+                    try {
+                        org.json.JSONObject jr = new org.json.JSONObject(responseJson);
+                        String txnStatus = jr.optString("txnStatus", jr.optString("status", ""));
+                        android.util.Log.d("PAY_RESULT", "txnStatus=" + txnStatus);
+                        if ("SUCCESS".equalsIgnoreCase(txnStatus) || "APPROVED".equalsIgnoreCase(txnStatus)) {
+                            handlePaymentSuccess(responseJson);
+                            return;
+                        }
+                    } catch (Exception ignored) {}
+                }
+                handlePaymentFailure(responseJson);
+            }
         }
         if (requestCode == REQUEST_CODE_SCAN && resultCode == RESULT_OK && data != null) {
+            // fallback path for older ZXing intent flow
             String scanned = data.getStringExtra("SCAN_RESULT");
+            if (scanned == null) scanned = data.getStringExtra("com.google.zxing.client.android.SCAN_RESULT");
+            android.util.Log.d("QR_SCAN", "onActivityResult SCAN scanned=" + scanned);
             if (scanned != null && !scanned.isEmpty()) {
-                ((android.widget.EditText) findViewById(R.id.inputQrContent)).setText(scanned);
+                showScreen(4);
                 validateQrContent(scanned);
             }
         }
     }
 
+    private String extractPaymentMode(String responseJson) {
+        try {
+            JSONObject jr = new JSONObject(responseJson);
+            String mode = jr.optJSONObject("result")
+                           .optJSONObject("txn")
+                           .optString("paymentMode", "CARD");
+            return mode.isEmpty() ? "CARD" : mode;
+        } catch (Exception e) { return "CARD"; }
+    }
+
     private void handlePaymentSuccess(String responseJson) {
         String txnId       = extractTxnId(responseJson);
+        String payMode     = extractPaymentMode(responseJson);
         String conductorId = ConductorAuth.getLoggedInId(this);
         String timestamp   = new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss'Z'", Locale.US).format(new Date());
-        String shortRoute  = route.contains(" — ") ? route.split(" — ")[0] : route;
+        String shortRoute  = (route != null && route.contains(" — ")) ? route.split(" — ")[0] : (route != null ? route : "");
 
         // Save to local DB first (offline-safe)
         TicketEntity entity = new TicketEntity();
@@ -396,9 +470,10 @@ public class MainActivity extends Activity {
                     body.put("fare",        fare);
                     body.put("conductorId", conductorId);
                     body.put("timestamp",   timestamp);
-                    body.put("tripId",      WaybillActivity.activeTripId);
-                    body.put("waybillNo",   WaybillActivity.activeWaybillNo);
-                    body.put("paymentMode", "UPI");
+                    body.put("tripId",          WaybillActivity.activeTripId);
+                    body.put("waybillNo",       WaybillActivity.activeWaybillNo);
+                    body.put("paymentMode",     payMode);
+                    body.put("passengerCount",  passengerCount);
 
                     URL url = new URL(BACKEND_URL);
                     HttpURLConnection conn = (HttpURLConnection) url.openConnection();
@@ -423,18 +498,35 @@ public class MainActivity extends Activity {
                             pending[0].ticketNo = ticketNo;
                             AppDatabase.get(this).ticketDao().update(pending[0]);
                         }
-                        uiHandler.post(() -> showResultScreen(true, null, ticketNo, txnId));
+                        final String tNo = ticketNo;
+                        uiHandler.post(() -> {
+                            showResultScreen(true, null, tNo, txnId);
+                            printTicket(tNo, shortRoute, source, dest, passengerCount,
+                                Double.parseDouble(fare.isEmpty() ? "0" : fare), payMode, timestamp);
+                        });
                     } else {
-                        uiHandler.post(() -> showResultScreen(true, null, "TK-PENDING", txnId));
+                        uiHandler.post(() -> {
+                            showResultScreen(true, null, "TK-PENDING", txnId);
+                            printTicket("TK-PENDING", shortRoute, source, dest, passengerCount,
+                                Double.parseDouble(fare.isEmpty() ? "0" : fare), payMode, timestamp);
+                        });
                     }
                 } catch (Exception e) {
                     Log.e(TAG, "Backend POST error", e);
-                    uiHandler.post(() -> showResultScreen(true, null, "TK-PENDING", txnId));
+                    uiHandler.post(() -> {
+                        showResultScreen(true, null, "TK-PENDING", txnId);
+                        printTicket("TK-PENDING", shortRoute, source, dest, passengerCount,
+                            Double.parseDouble(fare.isEmpty() ? "0" : fare), payMode, timestamp);
+                    });
                 }
             } else {
                 // Offline — show pending, sync later
                 triggerSync();
-                uiHandler.post(() -> showResultScreen(true, null, "TK-PENDING", txnId));
+                uiHandler.post(() -> {
+                    showResultScreen(true, null, "TK-PENDING", txnId);
+                    printTicket("TK-PENDING", shortRoute, source, dest, passengerCount,
+                        Double.parseDouble(fare.isEmpty() ? "0" : fare), payMode, timestamp);
+                });
             }
         });
     }
@@ -515,20 +607,12 @@ public class MainActivity extends Activity {
     }
 
     private void launchQrScanner() {
-        // Try standard barcode scan intent (works on most POS/Android devices with scanner app)
-        try {
-            Intent intent = new Intent("com.google.zxing.client.android.SCAN");
-            intent.putExtra("SCAN_MODE", "QR_CODE_MODE");
-            startActivityForResult(intent, REQUEST_CODE_SCAN);
-        } catch (android.content.ActivityNotFoundException e1) {
-            try {
-                // Fallback: generic ACTION_SCAN used by some POS barcode apps
-                Intent intent = new Intent("android.intent.action.SCAN");
-                startActivityForResult(intent, REQUEST_CODE_SCAN);
-            } catch (android.content.ActivityNotFoundException e2) {
-                Toast.makeText(this, "No scanner app found — paste QR content manually", Toast.LENGTH_LONG).show();
-            }
-        }
+        com.journeyapps.barcodescanner.ScanOptions options = new com.journeyapps.barcodescanner.ScanOptions();
+        options.setDesiredBarcodeFormats(com.journeyapps.barcodescanner.ScanOptions.QR_CODE);
+        options.setPrompt("Point camera at QR code");
+        options.setBeepEnabled(true);
+        options.setOrientationLocked(false);
+        qrLauncher.launch(options);
     }
 
     private void validateQrContent(String raw) {
@@ -588,7 +672,7 @@ public class MainActivity extends Activity {
 
         // Parse fare
         double fareRupees = 0;
-        try { fareRupees = Double.parseDouble(farePaise) / 100.0; } catch (Exception ignored) {}
+        try { fareRupees = Double.parseDouble(farePaise); } catch (Exception ignored) {}
 
         // Format timestamp if numeric (epoch ms)
         String tsDisplay = timestamp;
@@ -602,25 +686,51 @@ public class MainActivity extends Activity {
             tvStatus.setText("ALREADY USED");
             tvStatus.setTextColor(0xFFE65100);
             card.setBackgroundColor(0xFFFFF3E0);
-        } else {
-            tvStatus.setText("VALID");
-            tvStatus.setTextColor(0xFF2E7D32);
-            card.setBackgroundColor(0xFFE8F5E9);
-            // Record ticket for this validated QR
-            postQrTicket(ticketId, fareRupees, zone);
+            return;
         }
 
-        tvDetail.setText(
-            "Ticket ID:  " + ticketId + "\n" +
-            "User ID:    " + userId + "\n" +
-            "Trip ID:    " + tripId + "\n" +
-            "Type:       " + type + "\n" +
-            "Zone:       " + zone + "\n" +
-            "Fare:       Rs." + String.format("%.2f", fareRupees) + "\n" +
-            "Colour:     " + colour + "\n" +
-            "Count:      " + count + "\n" +
-            "Issued:     " + tsDisplay
-        );
+        // Check local DB for duplicate scan on this device
+        final String fTicketId = ticketId;
+        final double fFare = fareRupees;
+        final String fZone = zone;
+        final String fUserId = userId;
+        final String fTripId = tripId;
+        final String fType = type;
+        final String fColour = colour;
+        final String fCount = count;
+        final String fTs = tsDisplay;
+        executor.execute(() -> {
+            int dbCount = AppDatabase.get(this).scannedQrDao().exists(fTicketId);
+            runOnUiThread(() -> {
+                if (dbCount > 0) {
+                    tvStatus.setText("ALREADY SCANNED");
+                    tvStatus.setTextColor(0xFFE65100);
+                    card.setBackgroundColor(0xFFFFF3E0);
+                    tvDetail.setText("Ticket " + fTicketId + " already scanned on this device.\nCannot accept again.");
+                } else {
+                    tvStatus.setText("VALID");
+                    tvStatus.setTextColor(0xFF2E7D32);
+                    card.setBackgroundColor(0xFFE8F5E9);
+                    tvDetail.setText(
+                        "Ticket ID:  " + fTicketId + "\n" +
+                        "User ID:    " + fUserId + "\n" +
+                        "Trip ID:    " + fTripId + "\n" +
+                        "Type:       " + fType + "\n" +
+                        "Zone:       " + fZone + "\n" +
+                        "Fare:       Rs." + String.format("%.2f", fFare) + "\n" +
+                        "Colour:     " + fColour + "\n" +
+                        "Count:      " + fCount + "\n" +
+                        "Issued:     " + fTs
+                    );
+                    // Save to local scanned log
+                    ScannedQrEntity qrLog = new ScannedQrEntity();
+                    qrLog.ticketId = fTicketId;
+                    qrLog.scannedAt = new java.text.SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss'Z'", java.util.Locale.US).format(new java.util.Date());
+                    executor.execute(() -> AppDatabase.get(this).scannedQrDao().insert(qrLog));
+                    postQrTicket(fTicketId, fFare, fZone);
+                }
+            });
+        });
     }
 
     private void postQrTicket(String qrTicketId, double fareRupees, String zone) {
@@ -657,9 +767,10 @@ public class MainActivity extends Activity {
                     body.put("fare",        fareVal);
                     body.put("conductorId", conductorId);
                     body.put("timestamp",   timestamp);
-                    body.put("tripId",      WaybillActivity.activeTripId);
-                    body.put("waybillNo",   WaybillActivity.activeWaybillNo);
-                    body.put("paymentMode", "NCMC");
+                    body.put("tripId",         WaybillActivity.activeTripId);
+                    body.put("waybillNo",      WaybillActivity.activeWaybillNo);
+                    body.put("paymentMode",    "NCMC");
+                    body.put("passengerCount", 1);
 
                     URL url = new URL(BACKEND_URL);
                     HttpURLConnection conn = (HttpURLConnection) url.openConnection();
@@ -682,7 +793,10 @@ public class MainActivity extends Activity {
                             pending[0].ticketNo = ticketNo;
                             AppDatabase.get(this).ticketDao().update(pending[0]);
                         }
-                        uiHandler.post(() -> Toast.makeText(this, "Recorded: " + ticketNo, Toast.LENGTH_SHORT).show());
+                        uiHandler.post(() -> {
+                            Toast.makeText(this, "Recorded: " + ticketNo, Toast.LENGTH_SHORT).show();
+                            printTicket(ticketNo, shortRoute, src, dst, 1, fareVal, "QR", timestamp);
+                        });
                     }
                 } catch (Exception e) {
                     Log.e(TAG, "QR ticket post error", e);
@@ -695,5 +809,165 @@ public class MainActivity extends Activity {
     protected void onDestroy() {
         super.onDestroy();
         executor.shutdown();
+    }
+
+    // ── Thermal printer ──────────────────────────────────────────────────────
+    void printTicket(String ticketNo, String route, String src, String dst, int pax, double fare, String mode, String ts) {
+        executor.execute(() -> {
+            try {
+                com.pax.dal.IDAL dal = com.pax.neptunelite.api.NeptuneLiteUser.getInstance().getDal(this);
+                com.pax.dal.IPrinter printer = dal.getPrinter();
+                printer.init();
+
+                // Build bitmap to print
+                int width = 384; // 58mm roll = 384px at 8dots/mm
+                android.graphics.Bitmap bmp = buildTicketBitmap(ticketNo, route, src, dst, pax, fare, mode, ts, width);
+                printer.printBitmap(bmp);
+                printer.step(60);
+                int result = printer.start();
+                android.util.Log.d("PRINTER", "print result=" + result);
+                if (result != 0) {
+                    uiHandler.post(() -> Toast.makeText(this, "Printer error: " + result, Toast.LENGTH_SHORT).show());
+                }
+            } catch (Exception e) {
+                android.util.Log.e("PRINTER", "print failed", e);
+                uiHandler.post(() -> Toast.makeText(this, "Print failed: " + e.getMessage(), Toast.LENGTH_SHORT).show());
+            }
+        });
+    }
+
+    private android.graphics.Bitmap buildTicketBitmap(String ticketNo, String route, String src, String dst,
+                                                       int pax, double fare, String mode, String ts, int width) {
+        int p = 14;
+        int lh = 36;
+        int height = 18 * lh + p * 2;
+        android.graphics.Bitmap bmp = android.graphics.Bitmap.createBitmap(width, height, android.graphics.Bitmap.Config.ARGB_8888);
+        android.graphics.Canvas c = new android.graphics.Canvas(bmp);
+        c.drawColor(android.graphics.Color.WHITE);
+
+        android.graphics.Paint center = new android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG);
+        center.setColor(android.graphics.Color.BLACK);
+        center.setTextAlign(android.graphics.Paint.Align.CENTER);
+        center.setTypeface(android.graphics.Typeface.DEFAULT_BOLD);
+
+        android.graphics.Paint left = new android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG);
+        left.setColor(android.graphics.Color.BLACK);
+        left.setTextAlign(android.graphics.Paint.Align.LEFT);
+        left.setTypeface(android.graphics.Typeface.DEFAULT);
+
+        android.graphics.Paint right = new android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG);
+        right.setColor(android.graphics.Color.BLACK);
+        right.setTextAlign(android.graphics.Paint.Align.RIGHT);
+        right.setTypeface(android.graphics.Typeface.DEFAULT);
+
+        android.graphics.Paint div = new android.graphics.Paint();
+        div.setColor(android.graphics.Color.BLACK);
+        div.setStrokeWidth(2f);
+
+        android.graphics.Paint dotDiv = new android.graphics.Paint();
+        dotDiv.setColor(android.graphics.Color.BLACK);
+        dotDiv.setStrokeWidth(1f);
+        dotDiv.setPathEffect(new android.graphics.DashPathEffect(new float[]{6, 4}, 0));
+
+        String fleet    = WaybillActivity.activeFleetNo   != null ? WaybillActivity.activeFleetNo   : "—";
+        String waybill  = WaybillActivity.activeWaybillNo != null ? WaybillActivity.activeWaybillNo : "—";
+        String tripNo   = String.valueOf(WaybillActivity.activeTripNo);
+
+        // Parse timestamp into date + time
+        String dateStr = ts, timeStr = "";
+        try {
+            java.text.SimpleDateFormat in  = new java.text.SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss'Z'", java.util.Locale.US);
+            java.text.SimpleDateFormat d   = new java.text.SimpleDateFormat("dd.MM.yyyy", java.util.Locale.US);
+            java.text.SimpleDateFormat t   = new java.text.SimpleDateFormat("HH:mm:ss", java.util.Locale.US);
+            java.util.Date dt = in.parse(ts);
+            dateStr = d.format(dt); timeStr = t.format(dt);
+        } catch (Exception ignored) {}
+
+        int y = p;
+
+        // ── Header ──────────────────────────────────────────────
+        center.setTextSize(30f);
+        c.drawText("MTC, CHENNAI", width / 2f, y + 30, center);
+        y += lh;
+        center.setTextSize(20f);
+        center.setTypeface(android.graphics.Typeface.DEFAULT);
+        c.drawText("Metropolitan Transport Corporation", width / 2f, y + 20, center);
+        y += lh - 6;
+        c.drawLine(p, y, width - p, y, div);
+        y += 8;
+
+        // ── Ticket No + Date + Time ──────────────────────────────
+        left.setTextSize(22f); right.setTextSize(22f);
+        c.drawText("T No: " + ticketNo, p, y + 22, left);
+        c.drawText(dateStr, width - p, y + 22, right);
+        y += lh;
+        left.setTextSize(20f); right.setTextSize(20f);
+        c.drawText("Waybill: " + waybill, p, y + 20, left);
+        c.drawText(timeStr, width - p, y + 20, right);
+        y += lh - 4;
+        c.drawLine(p, y, width - p, y, div);
+        y += 8;
+
+        // ── Fleet + Trip ─────────────────────────────────────────
+        left.setTextSize(20f); right.setTextSize(20f);
+        c.drawText("Fleet: " + fleet, p, y + 20, left);
+        c.drawText("Trip: " + tripNo, width - p, y + 20, right);
+        y += lh - 4;
+        c.drawLine(p, y, width - p, y, div);
+        y += 8;
+
+        // ── Route ────────────────────────────────────────────────
+        center.setTextSize(24f);
+        center.setTypeface(android.graphics.Typeface.DEFAULT_BOLD);
+        c.drawText("Route: " + route, width / 2f, y + 24, center);
+        y += lh;
+
+        // ── Journey ──────────────────────────────────────────────
+        left.setTextSize(21f);
+        left.setTypeface(android.graphics.Typeface.DEFAULT_BOLD);
+        c.drawText(src, p, y + 21, left);
+        right.setTextSize(21f);
+        right.setTypeface(android.graphics.Typeface.DEFAULT_BOLD);
+        c.drawText(dst, width - p, y + 21, right);
+        y += lh - 6;
+        left.setTextSize(19f);
+        left.setTypeface(android.graphics.Typeface.DEFAULT);
+        right.setTextSize(19f);
+        right.setTypeface(android.graphics.Typeface.DEFAULT);
+        c.drawText("(From)", p, y + 19, left);
+        c.drawText("(To)", width - p, y + 19, right);
+        y += lh - 4;
+        c.drawLine(p, y, width - p, y, div);
+        y += 8;
+
+        // ── Fare breakdown ───────────────────────────────────────
+        left.setTextSize(20f);
+        right.setTextSize(20f);
+        double total = fare * pax;
+        c.drawText("Ad: " + pax + " x " + String.format("%.2f", fare), p, y + 20, left);
+        c.drawText("= Rs." + String.format("%.2f", total), width - p, y + 20, right);
+        y += lh;
+
+        // ── Big fare + mode ──────────────────────────────────────
+        center.setTextSize(30f);
+        center.setTypeface(android.graphics.Typeface.DEFAULT_BOLD);
+        c.drawText("Rs. " + String.format("%.2f", total) + " (" + mode + ")", width / 2f, y + 30, center);
+        y += lh + 6;
+
+        // ── Dotted cut line ──────────────────────────────────────
+        android.graphics.Path path = new android.graphics.Path();
+        path.moveTo(p, y); path.lineTo(width - p, y);
+        c.drawPath(path, dotDiv);
+        y += 10;
+
+        // ── Footer ───────────────────────────────────────────────
+        center.setTextSize(17f);
+        center.setTypeface(android.graphics.Typeface.DEFAULT);
+        c.drawText("Thank you for travelling with MTC", width / 2f, y + 17, center);
+        y += lh - 10;
+        center.setTextSize(15f);
+        c.drawText("Please retain ticket for inspection", width / 2f, y + 15, center);
+
+        return bmp;
     }
 }

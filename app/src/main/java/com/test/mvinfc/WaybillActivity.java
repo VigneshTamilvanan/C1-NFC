@@ -40,9 +40,11 @@ public class WaybillActivity extends Activity {
     private JSONArray trips;
 
     // Passed from MainActivity when trip starts
-    public static String activeTripId  = null;
-    public static int    activeTripNo  = 0;
+    public static String activeTripId   = null;
+    public static int    activeTripNo   = 0;
     public static String activeWaybillNo = null;
+    public static String activeRouteNo   = null;
+    public static String activeFleetNo   = null;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -190,7 +192,21 @@ public class WaybillActivity extends Activity {
                 JSONObject wb = new JSONObject(body);
                 waybillNo = wb.getString("waybill_no");
                 activeWaybillNo = waybillNo;
+                activeRouteNo   = wb.optString("route_no", "");
+                activeFleetNo   = wb.optString("fleet_no", "");
                 trips = wb.optJSONArray("trips");
+
+                // Restore active trip state if app was restarted mid-trip
+                if (trips != null) {
+                    for (int i = 0; i < trips.length(); i++) {
+                        JSONObject t = trips.getJSONObject(i);
+                        if ("active".equals(t.optString("status"))) {
+                            activeTripId = t.optString("trip_id");
+                            activeTripNo = t.optInt("trip_no");
+                            break;
+                        }
+                    }
+                }
 
                 uiHandler.post(() -> renderWaybill(wb));
 
@@ -279,10 +295,11 @@ public class WaybillActivity extends Activity {
                     btn.setEnabled(!anyActive);
                     btn.setOnClickListener(v -> beginTrip(tripId, tripNo));
                 } else if ("active".equals(status)) {
-                    btn.setText("END TRIP");
-                    btn.setBackgroundColor(Color.parseColor("#E65100"));
+                    btn.setText("RESUME →");
+                    btn.setBackgroundColor(Color.parseColor("#1565C0"));
                     btn.setTextColor(Color.WHITE);
-                    btn.setOnClickListener(v -> endTrip(tripId));
+                    btn.setOnClickListener(v -> startActivity(new Intent(this, MainActivity.class)));
+                    card.setOnClickListener(v -> startActivity(new Intent(this, MainActivity.class)));
                 } else {
                     btn.setText("CLOSED");
                     btn.setEnabled(false);
