@@ -16,33 +16,83 @@
             android:orientation="vertical"
             android:padding="24dp">
 
-            <TextView
+            <LinearLayout
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:text="Chennai One — ETM"
-                android:textSize="22sp"
-                android:textStyle="bold"
-                android:textColor="#1A237E"
-                android:layout_marginBottom="4dp"/>
+                android:orientation="horizontal"
+                android:layout_marginBottom="4dp">
+
+                <TextView
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:text="Chennai One — ETM"
+                    android:textSize="22sp"
+                    android:textStyle="bold"
+                    android:textColor="#1A237E"/>
+
+                <Button
+                    android:id="@+id/btnLogout"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="Logout"
+                    android:textSize="12sp"
+                    android:backgroundTint="#B71C1C"
+                    android:textColor="#FFFFFF"
+                    android:paddingStart="12dp"
+                    android:paddingEnd="12dp"/>
+            </LinearLayout>
 
             <TextView
+                android:id="@+id/tvConductor"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:text="Trip Setup"
-                android:textSize="14sp"
-                android:textColor="#888888"
-                android:layout_marginBottom="24dp"/>
+                android:text=""
+                android:textSize="13sp"
+                android:textColor="#555555"
+                android:layout_marginBottom="4dp"/>
+
+            <!-- Active trip banner -->
+            <LinearLayout
+                android:id="@+id/bannerTrip"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal"
+                android:background="#1565C0"
+                android:padding="12dp"
+                android:layout_marginBottom="16dp">
+                <TextView
+                    android:id="@+id/tvActiveTripBanner"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:text="Trip — | Route —"
+                    android:textColor="#FFFFFF"
+                    android:textSize="16sp"
+                    android:textStyle="bold"/>
+            </LinearLayout>
 
             <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
                 android:text="Route" android:textColor="#444444" android:textSize="13sp"
                 android:layout_marginBottom="4dp"/>
+            <TextView
+                android:id="@+id/tvRouteFixed"
+                android:layout_width="match_parent"
+                android:layout_height="48dp"
+                android:gravity="center_vertical"
+                android:paddingStart="8dp"
+                android:textSize="16sp"
+                android:textColor="#1A237E"
+                android:textStyle="bold"
+                android:background="#E8EAF6"
+                android:layout_marginBottom="20dp"
+                android:text="—"/>
+            <!-- Hidden spinner kept for compat; invisible -->
             <Spinner
                 android:id="@+id/spinnerRoute"
                 android:layout_width="match_parent"
-                android:layout_height="48dp"
-                android:layout_marginBottom="20dp"
-                android:background="@android:drawable/btn_dropdown"
-                android:padding="8dp"/>
+                android:layout_height="0dp"
+                android:visibility="gone"/>
 
             <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
                 android:text="Source" android:textColor="#444444" android:textSize="13sp"
@@ -85,6 +135,16 @@
                 android:text="START COLLECTION"
                 android:textSize="16sp"
                 android:backgroundTint="#1A237E"
+                android:textColor="#FFFFFF"
+                android:layout_marginBottom="12dp"/>
+
+            <Button
+                android:id="@+id/btnValidateQr"
+                android:layout_width="match_parent"
+                android:layout_height="52dp"
+                android:text="VALIDATE QR TICKET"
+                android:textSize="15sp"
+                android:backgroundTint="#F57F17"
                 android:textColor="#FFFFFF"/>
 
         </LinearLayout>
@@ -221,6 +281,112 @@
             android:textSize="18sp"
             android:backgroundTint="#1A237E"
             android:textColor="#FFFFFF"/>
+
+    </LinearLayout>
+
+    <!-- Screen 4: QR Validation -->
+    <LinearLayout
+        android:id="@+id/screenQr"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:orientation="vertical"
+        android:padding="24dp"
+        android:visibility="gone">
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Validate QR Ticket"
+            android:textSize="22sp"
+            android:textStyle="bold"
+            android:textColor="#1A237E"
+            android:layout_marginBottom="6dp"/>
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Scan QR or paste content below"
+            android:textSize="13sp"
+            android:textColor="#888888"
+            android:layout_marginBottom="20dp"/>
+
+        <Button
+            android:id="@+id/btnScanQr"
+            android:layout_width="match_parent"
+            android:layout_height="56dp"
+            android:text="SCAN QR CODE"
+            android:textSize="16sp"
+            android:backgroundTint="#1565C0"
+            android:textColor="#FFFFFF"
+            android:layout_marginBottom="16dp"/>
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="— or paste QR content manually —"
+            android:textSize="12sp"
+            android:textColor="#AAAAAA"
+            android:textAlignment="center"
+            android:layout_marginBottom="12dp"/>
+
+        <EditText
+            android:id="@+id/inputQrContent"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:hint="Paste QR payload here..."
+            android:minLines="3"
+            android:maxLines="5"
+            android:inputType="textMultiLine"
+            android:padding="12dp"
+            android:layout_marginBottom="12dp"/>
+
+        <Button
+            android:id="@+id/btnCheckQr"
+            android:layout_width="match_parent"
+            android:layout_height="52dp"
+            android:text="VALIDATE"
+            android:textSize="15sp"
+            android:backgroundTint="#F57F17"
+            android:textColor="#FFFFFF"
+            android:layout_marginBottom="20dp"/>
+
+        <!-- Result card -->
+        <LinearLayout
+            android:id="@+id/qrResultCard"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:padding="20dp"
+            android:visibility="gone">
+
+            <TextView
+                android:id="@+id/tvQrStatus"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:textSize="28sp"
+                android:textStyle="bold"
+                android:textAlignment="center"
+                android:layout_marginBottom="16dp"/>
+
+            <TextView
+                android:id="@+id/tvQrDetail"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:textSize="15sp"
+                android:textColor="#444444"
+                android:lineSpacingExtra="6dp"/>
+
+        </LinearLayout>
+
+        <Button
+            android:id="@+id/btnQrBack"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="BACK TO TICKET"
+            android:textSize="14sp"
+            android:backgroundTint="#9E9E9E"
+            android:textColor="#FFFFFF"
+            android:layout_marginTop="12dp"/>
 
     </LinearLayout>
 

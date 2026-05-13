@@ -17,6 +17,7 @@ import android.widget.Button;
 import android.widget.EditText;
 import android.widget.Spinner;
 import android.widget.TextView;
+import android.widget.Toast;
 
 import androidx.work.Constraints;
 import androidx.work.NetworkType;
@@ -90,10 +91,12 @@ public class MainActivity extends Activity {
     }
 
     // Screens
-    private View screenTripSetup, screenTap, screenResult;
+    private View screenTripSetup, screenTap, screenResult, screenQr;
+    private static final int REQUEST_CODE_SCAN = 10099;
 
     // Screen 1
     private Spinner spinnerRoute, spinnerSource, spinnerDest;
+    private TextView tvRouteFixed, tvActiveTripBanner;
     private EditText inputFare;
     private Button btnStartCollection;
     private TextView tvConductor;
@@ -128,7 +131,10 @@ public class MainActivity extends Activity {
         screenTripSetup    = findViewById(R.id.screenTripSetup);
         screenTap          = findViewById(R.id.screenTap);
         screenResult       = findViewById(R.id.screenResult);
+        screenQr           = findViewById(R.id.screenQr);
         spinnerRoute       = findViewById(R.id.spinnerRoute);
+        tvRouteFixed       = findViewById(R.id.tvRouteFixed);
+        tvActiveTripBanner = findViewById(R.id.tvActiveTripBanner);
         spinnerSource      = findViewById(R.id.spinnerSource);
         spinnerDest        = findViewById(R.id.spinnerDest);
         inputFare          = findViewById(R.id.inputFare);
@@ -149,11 +155,44 @@ public class MainActivity extends Activity {
         String conductorId   = ConductorAuth.getLoggedInId(this);
         tvConductor.setText(conductorId + " — " + conductorName);
 
+        // Trip banner
+        String tripLabel = "Trip " + WaybillActivity.activeTripNo + "  |  Route " + WaybillActivity.activeRouteNo;
+        tvActiveTripBanner.setText(tripLabel);
+
         setupRouteSpinner();
+
+        // Auto-select route from waybill
+        if (WaybillActivity.activeRouteNo != null && !WaybillActivity.activeRouteNo.isEmpty()) {
+            String[] routeKeys = ROUTE_STOPS.keySet().toArray(new String[0]);
+            for (int i = 0; i < routeKeys.length; i++) {
+                if (routeKeys[i].startsWith(WaybillActivity.activeRouteNo + " ") ||
+                    routeKeys[i].startsWith(WaybillActivity.activeRouteNo + "—")) {
+                    spinnerRoute.setSelection(i, false);
+                    break;
+                }
+            }
+            // Show fixed route label
+            String matchedKey = (String) spinnerRoute.getSelectedItem();
+            tvRouteFixed.setText(matchedKey != null ? matchedKey : "Route " + WaybillActivity.activeRouteNo);
+        } else {
+            tvRouteFixed.setText("Route " + WaybillActivity.activeRouteNo);
+        }
         btnStartCollection.setOnClickListener(v -> onStartCollection());
         btnPay.setOnClickListener(v -> onPayNow());
         btnEditTrip.setOnClickListener(v -> showScreen(1));
         btnNextPassenger.setOnClickListener(v -> showScreen(2));
+        findViewById(R.id.btnValidateQr).setOnClickListener(v -> showScreen(4));
+        findViewById(R.id.btnScanQr).setOnClickListener(v -> launchQrScanner());
+        findViewById(R.id.btnCheckQr).setOnClickListener(v -> {
+            String content = ((android.widget.EditText) findViewById(R.id.inputQrContent))
+                .getText().toString().trim();
+            validateQrContent(content);
+        });
+        findViewById(R.id.btnQrBack).setOnClickListener(v -> {
+            ((android.widget.EditText) findViewById(R.id.inputQrContent)).setText("");
+            findViewById(R.id.qrResultCard).setVisibility(View.GONE);
+            showScreen(1);
+        });
 
         findViewById(R.id.btnLogout).setOnClickListener(v -> {
             ConductorAuth.logout(this);
@@ -185,6 +224,7 @@ public class MainActivity extends Activity {
         spinnerRoute.setAdapter(routeAdapter);
         spinnerRoute.setOnItemSelectedListener(new AdapterView.OnItemSelectedListener() {
             @Override public void onItemSelected(AdapterView<?> p, View v, int pos, long id) {
+                tvRouteFixed.setText(routeNames[pos]);
                 updateStopSpinners(routeNames[pos]);
             }
             @Override public void onNothingSelected(AdapterView<?> p) {}
@@ -236,7 +276,10 @@ public class MainActivity extends Activity {
                     String resp = new Scanner(conn.getInputStream()).useDelimiter("\\A").next();
                     String fareVal = new org.json.JSONObject(resp).optString("fare", "");
                     if (!fareVal.isEmpty()) {
-                        uiHandler.post(() -> inputFare.setText(fareVal));
+                        uiHandler.post(() -> {
+                            inputFare.setText(fareVal);
+                            btnStartCollection.setText("TAP PAY  ₹" + fareVal);
+                        });
                     }
                 }
             } catch (Exception ignored) {}
@@ -254,7 +297,8 @@ public class MainActivity extends Activity {
         tapRoute.setText("Route " + shortRoute);
         tapJourney.setText(source + " → " + dest);
         tapFare.setText("₹" + fare);
-        showScreen(2);
+        // Skip Screen 2 — go straight to payment
+        onPayNow();
     }
 
     private void initSdk() {
@@ -312,6 +356,13 @@ public class MainActivity extends Activity {
             String responseJson = data != null ? data.getStringExtra("response") : null;
             if (resultCode == RESULT_OK) handlePaymentSuccess(responseJson);
             else handlePaymentFailure(responseJson);
+        }
+        if (requestCode == REQUEST_CODE_SCAN && resultCode == RESULT_OK && data != null) {
+            String scanned = data.getStringExtra("SCAN_RESULT");
+            if (scanned != null && !scanned.isEmpty()) {
+                ((android.widget.EditText) findViewById(R.id.inputQrContent)).setText(scanned);
+                validateQrContent(scanned);
+            }
         }
     }
 
@@ -416,22 +467,14 @@ public class MainActivity extends Activity {
     }
 
     private void showResultScreen(boolean success, String errorMsg, String ticketNo, String txnId) {
-        String shortRoute = route.contains(" — ") ? route.split(" — ")[0] : route;
         if (success) {
             boolean pending = "TK-PENDING".equals(ticketNo);
-            resultStatus.setText(pending ? "✅ SAVED (syncing…)" : "✅ TICKET ISSUED");
-            resultStatus.setTextColor(0xFF2E7D32);
-            resultTicketNo.setText(pending ? "Will sync when online" : "Ticket #: " + ticketNo);
-            resultTxnId.setText("Txn: " + (txnId != null ? txnId : "—"));
-            resultJourney.setText(shortRoute + "  |  " + source + " → " + dest + "  |  ₹" + fare);
+            String msg = pending ? "Saved - syncing" : "Issued: " + ticketNo;
+            Toast.makeText(this, msg, Toast.LENGTH_SHORT).show();
         } else {
-            resultStatus.setText("❌ " + errorMsg);
-            resultStatus.setTextColor(0xFFC62828);
-            resultTicketNo.setText("");
-            resultTxnId.setText("");
-            resultJourney.setText(shortRoute + "  |  " + source + " → " + dest + "  |  ₹" + fare);
+            Toast.makeText(this, "Payment failed: " + errorMsg, Toast.LENGTH_LONG).show();
         }
-        showScreen(3);
+        showScreen(1);
     }
 
     private void triggerSync() {
@@ -468,6 +511,184 @@ public class MainActivity extends Activity {
         screenTripSetup.setVisibility(screen == 1 ? View.VISIBLE : View.GONE);
         screenTap.setVisibility(screen == 2 ? View.VISIBLE : View.GONE);
         screenResult.setVisibility(screen == 3 ? View.VISIBLE : View.GONE);
+        screenQr.setVisibility(screen == 4 ? View.VISIBLE : View.GONE);
+    }
+
+    private void launchQrScanner() {
+        // Try standard barcode scan intent (works on most POS/Android devices with scanner app)
+        try {
+            Intent intent = new Intent("com.google.zxing.client.android.SCAN");
+            intent.putExtra("SCAN_MODE", "QR_CODE_MODE");
+            startActivityForResult(intent, REQUEST_CODE_SCAN);
+        } catch (android.content.ActivityNotFoundException e1) {
+            try {
+                // Fallback: generic ACTION_SCAN used by some POS barcode apps
+                Intent intent = new Intent("android.intent.action.SCAN");
+                startActivityForResult(intent, REQUEST_CODE_SCAN);
+            } catch (android.content.ActivityNotFoundException e2) {
+                Toast.makeText(this, "No scanner app found — paste QR content manually", Toast.LENGTH_LONG).show();
+            }
+        }
+    }
+
+    private void validateQrContent(String raw) {
+        android.widget.TextView tvStatus = findViewById(R.id.tvQrStatus);
+        android.widget.TextView tvDetail = findViewById(R.id.tvQrDetail);
+        android.widget.LinearLayout card = findViewById(R.id.qrResultCard);
+        card.setVisibility(View.VISIBLE);
+
+        if (raw == null || raw.isEmpty()) {
+            tvStatus.setText("INVALID");
+            tvStatus.setTextColor(0xFFC62828);
+            card.setBackgroundColor(0xFFFFEBEE);
+            tvDetail.setText("No QR content provided.");
+            return;
+        }
+
+        // Expected: <sig>,<ticketId>,<userId>,<tripId>,<count>,<usedFlag>,<type>,<zone>,<fare_paise>,<colour>,<timestamp>,,,
+        // Minimum 11 non-empty fields, may have trailing commas
+        String[] parts = raw.split(",", -1);
+
+        // Strip trailing empty fields for count check
+        int nonEmpty = 0;
+        for (String p : parts) if (!p.trim().isEmpty()) nonEmpty++;
+
+        if (nonEmpty < 7) {
+            tvStatus.setText("INVALID");
+            tvStatus.setTextColor(0xFFC62828);
+            card.setBackgroundColor(0xFFFFEBEE);
+            tvDetail.setText("Invalid QR format.\nExpected: sig,ticketId,userId,tripId,count,usedFlag,type,zone,fare,...\nGot " + nonEmpty + " fields.");
+            return;
+        }
+
+        // Parse fields (trim each)
+        String signature = parts[0].trim();
+        String ticketId  = parts.length > 1 ? parts[1].trim() : "—";
+        String userId    = parts.length > 2 ? parts[2].trim() : "—";
+        String tripId    = parts.length > 3 ? parts[3].trim() : "—";
+        String count     = parts.length > 4 ? parts[4].trim() : "—";
+        String usedFlag  = parts.length > 5 ? parts[5].trim() : "—";
+        String type      = parts.length > 6 ? parts[6].trim() : "—";
+        String zone      = parts.length > 7 ? parts[7].trim() : "—";
+        String farePaise = parts.length > 8 ? parts[8].trim() : "0";
+        String colour    = parts.length > 9 ? parts[9].trim() : "—";
+        String timestamp = parts.length > 10 ? parts[10].trim() : "—";
+
+        // Basic sanity: signature should be non-trivial, ticketId non-empty
+        if (signature.isEmpty() || ticketId.isEmpty()) {
+            tvStatus.setText("INVALID");
+            tvStatus.setTextColor(0xFFC62828);
+            card.setBackgroundColor(0xFFFFEBEE);
+            tvDetail.setText("Missing signature or ticket ID.");
+            return;
+        }
+
+        // Check usedFlag — 1 = already used
+        boolean alreadyUsed = "1".equals(usedFlag);
+
+        // Parse fare
+        double fareRupees = 0;
+        try { fareRupees = Double.parseDouble(farePaise) / 100.0; } catch (Exception ignored) {}
+
+        // Format timestamp if numeric (epoch ms)
+        String tsDisplay = timestamp;
+        try {
+            long epoch = Long.parseLong(timestamp);
+            tsDisplay = new java.text.SimpleDateFormat("dd MMM yyyy, hh:mm a", java.util.Locale.US)
+                .format(new java.util.Date(epoch));
+        } catch (Exception ignored) {}
+
+        if (alreadyUsed) {
+            tvStatus.setText("ALREADY USED");
+            tvStatus.setTextColor(0xFFE65100);
+            card.setBackgroundColor(0xFFFFF3E0);
+        } else {
+            tvStatus.setText("VALID");
+            tvStatus.setTextColor(0xFF2E7D32);
+            card.setBackgroundColor(0xFFE8F5E9);
+            // Record ticket for this validated QR
+            postQrTicket(ticketId, fareRupees, zone);
+        }
+
+        tvDetail.setText(
+            "Ticket ID:  " + ticketId + "\n" +
+            "User ID:    " + userId + "\n" +
+            "Trip ID:    " + tripId + "\n" +
+            "Type:       " + type + "\n" +
+            "Zone:       " + zone + "\n" +
+            "Fare:       Rs." + String.format("%.2f", fareRupees) + "\n" +
+            "Colour:     " + colour + "\n" +
+            "Count:      " + count + "\n" +
+            "Issued:     " + tsDisplay
+        );
+    }
+
+    private void postQrTicket(String qrTicketId, double fareRupees, String zone) {
+        String conductorId = ConductorAuth.getLoggedInId(this);
+        String timestamp   = new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss'Z'", Locale.US).format(new Date());
+        String shortRoute  = WaybillActivity.activeRouteNo != null ? WaybillActivity.activeRouteNo : "—";
+        // Use current spinner values if available, else fall back to zone info
+        String src  = spinnerSource.getSelectedItem() != null ? spinnerSource.getSelectedItem().toString() : "—";
+        String dst  = spinnerDest.getSelectedItem()   != null ? spinnerDest.getSelectedItem().toString()   : ("Zone " + zone);
+        String txnId = "QR-" + qrTicketId;
+        double fareVal = fareRupees;
+
+        // Save to local DB
+        TicketEntity entity = new TicketEntity();
+        entity.txnId       = txnId;
+        entity.route       = shortRoute;
+        entity.source      = src;
+        entity.destination = dst;
+        entity.fare        = String.valueOf(fareVal);
+        entity.conductorId = conductorId;
+        entity.timestamp   = timestamp;
+        entity.synced      = false;
+
+        executor.execute(() -> {
+            AppDatabase.get(this).ticketDao().insert(entity);
+
+            if (isOnline()) {
+                try {
+                    JSONObject body = new JSONObject();
+                    body.put("txnId",       txnId);
+                    body.put("route",       shortRoute);
+                    body.put("source",      src);
+                    body.put("destination", dst);
+                    body.put("fare",        fareVal);
+                    body.put("conductorId", conductorId);
+                    body.put("timestamp",   timestamp);
+                    body.put("tripId",      WaybillActivity.activeTripId);
+                    body.put("waybillNo",   WaybillActivity.activeWaybillNo);
+                    body.put("paymentMode", "NCMC");
+
+                    URL url = new URL(BACKEND_URL);
+                    HttpURLConnection conn = (HttpURLConnection) url.openConnection();
+                    conn.setRequestMethod("POST");
+                    conn.setRequestProperty("Content-Type", "application/json");
+                    conn.setDoOutput(true);
+                    conn.setConnectTimeout(8000);
+                    conn.setReadTimeout(8000);
+                    conn.getOutputStream().write(body.toString().getBytes(StandardCharsets.UTF_8));
+
+                    int code = conn.getResponseCode();
+                    if (code == 200 || code == 201) {
+                        String resp     = new Scanner(conn.getInputStream()).useDelimiter("\\A").next();
+                        String ticketNo = new JSONObject(resp).optString("ticketNo", "TK-?");
+                        // Mark synced
+                        TicketEntity[] pending = AppDatabase.get(this).ticketDao().getPending()
+                            .stream().filter(t -> t.txnId.equals(txnId)).toArray(TicketEntity[]::new);
+                        if (pending.length > 0) {
+                            pending[0].synced   = true;
+                            pending[0].ticketNo = ticketNo;
+                            AppDatabase.get(this).ticketDao().update(pending[0]);
+                        }
+                        uiHandler.post(() -> Toast.makeText(this, "Recorded: " + ticketNo, Toast.LENGTH_SHORT).show());
+                    }
+                } catch (Exception e) {
+                    Log.e(TAG, "QR ticket post error", e);
+                }
+            }
+        });
     }
 
     @Override
