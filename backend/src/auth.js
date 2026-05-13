@@ -17,10 +17,12 @@ router.post('/login', async (req, res) => {
   const ok = await bcrypt.compare(password, user.password_hash);
   if (!ok) return res.status(401).json({ error: 'Invalid credentials' });
 
-  const token = jwt.sign({ userId: user.id, username: user.username },
-    process.env.JWT_SECRET, { expiresIn: '8h' });
+  const token = jwt.sign(
+    { userId: user.id, username: user.username, role: user.role, depotId: user.depot_id, depotName: user.depot_name },
+    process.env.JWT_SECRET, { expiresIn: '8h' }
+  );
 
-  res.json({ token });
+  res.json({ token, role: user.role, depotName: user.depot_name, username: user.username });
 });
 
 function requireAuth(req, res, next) {

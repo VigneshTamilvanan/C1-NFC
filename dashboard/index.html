@@ -3,45 +3,135 @@
 <head>
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-<title>Chennai One ETM — Dashboard</title>
+<title>Moving Tech ETM — Dashboard</title>
 <style>
-  *{box-sizing:border-box;margin:0;padding:0}
-  body{font-family:system-ui,sans-serif;background:#f0f2f5;color:#222}
-  /* Login */
-  #loginPage{display:flex;align-items:center;justify-content:center;min-height:100vh}
-  .login-card{background:#fff;border-radius:12px;padding:40px 36px;width:340px;box-shadow:0 4px 24px #0002}
-  .login-card h1{color:#1A237E;font-size:22px;margin-bottom:4px}
-  .login-card p{color:#888;font-size:13px;margin-bottom:28px}
-  .login-card input{width:100%;padding:10px 12px;border:1px solid #ddd;border-radius:8px;font-size:15px;margin-bottom:14px}
-  .login-card button{width:100%;padding:12px;background:#1A237E;color:#fff;border:none;border-radius:8px;font-size:15px;cursor:pointer;font-weight:600}
-  .login-card button:hover{background:#283593}
-  .login-error{color:#c62828;font-size:13px;margin-top:10px;min-height:18px}
-  /* Dashboard */
-  #dashPage{display:none;min-height:100vh}
-  header{background:#1A237E;color:#fff;padding:16px 28px;display:flex;justify-content:space-between;align-items:center}
-  header h1{font-size:18px}
-  header button{background:#ffffff22;border:none;color:#fff;padding:6px 16px;border-radius:6px;cursor:pointer;font-size:13px}
-  .stats{display:grid;grid-template-columns:repeat(4,1fr);gap:16px;padding:24px 28px 0}
-  .stat-card{background:#fff;border-radius:10px;padding:20px 24px;box-shadow:0 1px 6px #0001}
-  .stat-card .label{font-size:12px;color:#888;text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px}
-  .stat-card .value{font-size:28px;font-weight:700;color:#1A237E}
-  .stat-card .sub{font-size:12px;color:#aaa;margin-top:2px}
-  .content{padding:24px 28px}
-  .table-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:14px}
-  .table-header h2{font-size:16px;font-weight:600}
-  .table-header .refresh{font-size:12px;color:#888}
-  table{width:100%;border-collapse:collapse;background:#fff;border-radius:10px;overflow:hidden;box-shadow:0 1px 6px #0001}
-  th{background:#1A237E;color:#fff;padding:11px 14px;text-align:left;font-size:13px;font-weight:500}
-  td{padding:11px 14px;font-size:13px;border-bottom:1px solid #f0f0f0}
-  tr:last-child td{border-bottom:none}
-  tr:hover td{background:#f5f7ff}
-  .badge{display:inline-block;padding:2px 10px;border-radius:20px;font-size:11px;font-weight:600;background:#e8f5e9;color:#2e7d32}
-  .pagination{display:flex;justify-content:flex-end;gap:8px;margin-top:16px}
-  .pagination button{padding:6px 14px;border:1px solid #ddd;border-radius:6px;background:#fff;cursor:pointer;font-size:13px}
-  .pagination button.active{background:#1A237E;color:#fff;border-color:#1A237E}
-  .filter-bar{display:flex;gap:12px;margin-bottom:16px}
-  .filter-bar input,.filter-bar select{padding:8px 12px;border:1px solid #ddd;border-radius:8px;font-size:13px}
-  @media(max-width:768px){.stats{grid-template-columns:1fr 1fr}.content{padding:16px}}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:system-ui,sans-serif;background:#ECEFF1;color:#222;font-size:14px}
+
+/* ── Login ── */
+#loginPage{display:flex;align-items:center;justify-content:center;min-height:100vh}
+.login-card{background:#fff;border-radius:12px;padding:40px 36px;width:360px;box-shadow:0 4px 24px #0002}
+.login-card h1{color:#1A237E;font-size:22px;margin-bottom:4px;font-weight:700}
+.login-card p{color:#888;font-size:13px;margin-bottom:28px}
+.login-card input{width:100%;padding:10px 12px;border:1px solid #ddd;border-radius:8px;font-size:15px;margin-bottom:14px;outline:none}
+.login-card input:focus{border-color:#1A237E}
+.login-card button{width:100%;padding:12px;background:#1A237E;color:#fff;border:none;border-radius:8px;font-size:15px;cursor:pointer;font-weight:600}
+.login-card button:hover{background:#283593}
+.login-error{color:#c62828;font-size:13px;margin-top:10px;min-height:18px}
+
+/* ── Shell ── */
+#app{display:none;min-height:100vh;display:none}
+header{background:#1A237E;color:#fff;padding:0 24px;height:56px;display:flex;align-items:center;gap:16px;position:sticky;top:0;z-index:100}
+header .logo{font-size:17px;font-weight:700;flex:1}
+header .role-badge{background:#ffffff22;padding:3px 12px;border-radius:20px;font-size:12px}
+header button.hdr-btn{background:#ffffff22;border:none;color:#fff;padding:6px 16px;border-radius:6px;cursor:pointer;font-size:13px}
+header button.hdr-btn:hover{background:#ffffff33}
+
+/* ── Nav tabs ── */
+.nav{background:#fff;border-bottom:1px solid #e0e0e0;padding:0 24px;display:flex;gap:0}
+.nav-tab{padding:14px 20px;font-size:13px;font-weight:600;color:#666;cursor:pointer;border-bottom:3px solid transparent;transition:.15s}
+.nav-tab:hover{color:#1A237E}
+.nav-tab.active{color:#1A237E;border-bottom-color:#1A237E}
+
+/* ── Pages ── */
+.page{display:none;padding:24px}
+.page.active{display:block}
+
+/* ── Cards / layout ── */
+.stats{display:grid;grid-template-columns:repeat(4,1fr);gap:16px;margin-bottom:24px}
+.stat-card{background:#fff;border-radius:10px;padding:20px 24px;box-shadow:0 1px 4px #0001}
+.stat-card .lbl{font-size:11px;color:#888;text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px}
+.stat-card .val{font-size:26px;font-weight:700;color:#1A237E}
+.stat-card .sub{font-size:12px;color:#aaa;margin-top:2px}
+
+.card{background:#fff;border-radius:10px;box-shadow:0 1px 4px #0001;margin-bottom:20px}
+.card-header{padding:16px 20px;border-bottom:1px solid #f0f0f0;display:flex;justify-content:space-between;align-items:center}
+.card-header h2{font-size:15px;font-weight:600}
+.card-body{padding:20px}
+
+/* ── Table ── */
+table{width:100%;border-collapse:collapse}
+th{background:#1A237E;color:#fff;padding:10px 14px;text-align:left;font-size:12px;font-weight:500}
+td{padding:10px 14px;font-size:13px;border-bottom:1px solid #f0f0f0}
+tr:last-child td{border-bottom:none}
+tr:hover td{background:#f5f7ff}
+.tbl-wrap{border-radius:10px;overflow:hidden;box-shadow:0 1px 4px #0001}
+
+/* ── Badges ── */
+.badge{display:inline-block;padding:2px 10px;border-radius:20px;font-size:11px;font-weight:600}
+.badge-open{background:#E3F2FD;color:#1565C0}
+.badge-active{background:#E8F5E9;color:#2E7D32}
+.badge-closed{background:#F5F5F5;color:#757575}
+.badge-pending{background:#FFF8E1;color:#F57F17}
+
+/* ── Waybill board ── */
+.waybill-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:16px}
+.wb-card{background:#fff;border-radius:10px;box-shadow:0 1px 4px #0001;padding:16px;border-left:4px solid #ccc;cursor:pointer;transition:.15s}
+.wb-card:hover{box-shadow:0 3px 12px #0002;transform:translateY(-1px)}
+.wb-card.open{border-left-color:#1565C0}
+.wb-card.active{border-left-color:#2E7D32}
+.wb-card.closed{border-left-color:#9E9E9E}
+.wb-card h3{font-size:14px;font-weight:700;margin-bottom:6px;color:#1A237E}
+.wb-card .wb-meta{font-size:12px;color:#666;margin-bottom:10px;line-height:1.8}
+.wb-card .wb-trips{display:flex;gap:6px;flex-wrap:wrap}
+.trip-dot{width:28px;height:28px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;color:#fff}
+.trip-dot.pending{background:#BDBDBD}
+.trip-dot.active{background:#2E7D32}
+.trip-dot.closed{background:#1565C0}
+
+/* ── Form ── */
+.form-grid{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+.form-group{display:flex;flex-direction:column;gap:6px}
+.form-group label{font-size:12px;font-weight:600;color:#555;text-transform:uppercase;letter-spacing:.4px}
+.form-group input,.form-group select{padding:9px 12px;border:1px solid #ddd;border-radius:8px;font-size:14px;outline:none}
+.form-group input:focus,.form-group select:focus{border-color:#1A237E}
+.form-actions{display:flex;gap:12px;margin-top:8px}
+
+/* ── Buttons ── */
+.btn{padding:9px 20px;border:none;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;transition:.15s}
+.btn-primary{background:#1A237E;color:#fff}
+.btn-primary:hover{background:#283593}
+.btn-success{background:#2E7D32;color:#fff}
+.btn-success:hover{background:#388E3C}
+.btn-danger{background:#C62828;color:#fff}
+.btn-danger:hover{background:#D32F2F}
+.btn-ghost{background:#F5F5F5;color:#444;border:1px solid #ddd}
+.btn-ghost:hover{background:#eee}
+.btn-sm{padding:5px 14px;font-size:12px}
+
+/* ── Filter bar ── */
+.filter-bar{display:flex;gap:10px;margin-bottom:16px;flex-wrap:wrap;align-items:center}
+.filter-bar input,.filter-bar select{padding:8px 12px;border:1px solid #ddd;border-radius:8px;font-size:13px;outline:none}
+.filter-bar input:focus,.filter-bar select:focus{border-color:#1A237E}
+
+/* ── Trip detail modal ── */
+.modal-overlay{display:none;position:fixed;inset:0;background:#0006;z-index:200;align-items:center;justify-content:center}
+.modal-overlay.open{display:flex}
+.modal{background:#fff;border-radius:12px;width:700px;max-width:95vw;max-height:90vh;overflow-y:auto}
+.modal-header{padding:20px 24px;border-bottom:1px solid #eee;display:flex;justify-content:space-between;align-items:center}
+.modal-header h2{font-size:16px;font-weight:700}
+.modal-close{background:none;border:none;font-size:22px;cursor:pointer;color:#888;line-height:1}
+.modal-body{padding:24px}
+
+/* ── Trip breakdown ── */
+.trip-row{display:grid;grid-template-columns:80px 1fr repeat(4,90px) 100px;gap:0;border-bottom:1px solid #f0f0f0;padding:10px 0;align-items:center}
+.trip-row:last-child{border-bottom:none}
+.trip-row.header{font-size:11px;font-weight:700;text-transform:uppercase;color:#888;letter-spacing:.4px;padding-bottom:8px}
+
+/* ── Pagination ── */
+.pagination{display:flex;justify-content:flex-end;gap:6px;margin-top:14px}
+.pagination button{padding:5px 12px;border:1px solid #ddd;border-radius:6px;background:#fff;cursor:pointer;font-size:13px}
+.pagination button.active{background:#1A237E;color:#fff;border-color:#1A237E}
+
+/* ── Empty state ── */
+.empty{text-align:center;padding:48px 20px;color:#aaa}
+.empty svg{margin-bottom:12px;opacity:.4}
+
+@media(max-width:768px){
+  .stats{grid-template-columns:1fr 1fr}
+  .form-grid{grid-template-columns:1fr}
+  .page{padding:16px}
+}
 </style>
 </head>
 <body>
@@ -49,7 +139,7 @@
 <!-- LOGIN -->
 <div id="loginPage">
   <div class="login-card">
-    <h1>Chennai One ETM</h1>
+    <h1>Moving Tech ETM</h1>
     <p>Dashboard Login</p>
     <input type="text" id="loginUser" placeholder="Username" autocomplete="username"/>
     <input type="password" id="loginPass" placeholder="Password" autocomplete="current-password"/>
@@ -58,189 +148,557 @@
   </div>
 </div>
 
-<!-- DASHBOARD -->
-<div id="dashPage">
+<!-- APP -->
+<div id="app">
   <header>
-    <h1>Chennai One ETM — Ticket Dashboard</h1>
-    <button onclick="doLogout()">Logout</button>
+    <span class="logo">Moving Tech ETM</span>
+    <span class="role-badge" id="hdrRole"></span>
+    <span style="color:#fff8;font-size:13px" id="hdrUser"></span>
+    <button class="hdr-btn" onclick="doLogout()">Logout</button>
   </header>
 
-  <div class="stats">
-    <div class="stat-card">
-      <div class="label">Tickets Today</div>
-      <div class="value" id="statTodayTickets">—</div>
+  <div class="nav" id="navBar"></div>
+
+  <!-- ADMIN: Overview -->
+  <div class="page" id="pageOverview">
+    <div class="stats" id="overviewStats"></div>
+    <div class="card">
+      <div class="card-header">
+        <h2>All Waybills</h2>
+        <div style="display:flex;gap:10px;align-items:center">
+          <input type="date" id="ovDate" onchange="loadOverview()" style="padding:6px 10px;border:1px solid #ddd;border-radius:6px;font-size:13px"/>
+          <button class="btn btn-ghost btn-sm" onclick="loadOverview()">Refresh</button>
+        </div>
+      </div>
+      <div class="card-body" style="padding:0">
+        <table>
+          <thead><tr>
+            <th>Waybill</th><th>Conductor</th><th>Driver</th><th>Route</th><th>Shift</th>
+            <th>Trips</th><th>Pax</th><th>Revenue</th><th>Status</th>
+          </tr></thead>
+          <tbody id="overviewTbody"></tbody>
+        </table>
+      </div>
     </div>
-    <div class="stat-card">
-      <div class="label">Revenue Today</div>
-      <div class="value" id="statTodayRevenue">—</div>
-      <div class="sub">₹</div>
-    </div>
-    <div class="stat-card">
-      <div class="label">Total Tickets</div>
-      <div class="value" id="statTotalTickets">—</div>
-    </div>
-    <div class="stat-card">
-      <div class="label">Total Revenue</div>
-      <div class="value" id="statTotalRevenue">—</div>
-      <div class="sub">₹</div>
+
+    <div class="card">
+      <div class="card-header"><h2>Recent Tickets</h2></div>
+      <div class="card-body" style="padding:0" id="overviewTickets"></div>
     </div>
   </div>
 
-  <div class="content">
-    <div class="table-header">
-      <h2>Recent Tickets</h2>
-      <span class="refresh" id="lastRefresh"></span>
+  <!-- DEPOT: Today's Board -->
+  <div class="page" id="pageBoard">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px">
+      <div>
+        <h2 style="font-size:18px;font-weight:700" id="boardTitle">Today's Waybills</h2>
+        <p style="color:#888;font-size:13px;margin-top:2px" id="boardSubtitle"></p>
+      </div>
+      <div style="display:flex;gap:10px">
+        <input type="date" id="boardDate" onchange="loadBoard()" style="padding:8px 12px;border:1px solid #ddd;border-radius:8px;font-size:13px"/>
+        <button class="btn btn-primary" onclick="openCreateModal()">+ Create Waybill</button>
+      </div>
     </div>
+    <div class="waybill-grid" id="waybillGrid"></div>
+  </div>
 
-    <div class="filter-bar">
-      <input type="text" id="filterRoute" placeholder="Filter by route..." oninput="filterTable()"/>
-      <input type="date" id="filterDate" onchange="filterTable()"/>
-      <button onclick="loadData()" style="padding:8px 16px;background:#1A237E;color:#fff;border:none;border-radius:8px;cursor:pointer;font-size:13px">Refresh</button>
+  <!-- DEPOT: Create Waybill (hidden, shown as inline form) -->
+  <div class="page" id="pageCreate">
+    <div style="display:flex;align-items:center;gap:12px;margin-bottom:20px">
+      <button class="btn btn-ghost btn-sm" onclick="showPage('pageBoard')">&#8592; Back</button>
+      <h2 style="font-size:18px;font-weight:700">Create Waybill</h2>
     </div>
+    <div class="card">
+      <div class="card-body">
+        <div class="form-grid" id="createForm">
+          <div class="form-group">
+            <label>Conductor Staff No</label>
+            <input id="fConductorNo" placeholder="C001"/>
+          </div>
+          <div class="form-group">
+            <label>Conductor Name</label>
+            <input id="fConductorName" placeholder="Ravi Kumar"/>
+          </div>
+          <div class="form-group">
+            <label>Driver Staff No</label>
+            <input id="fDriverNo" placeholder="D001"/>
+          </div>
+          <div class="form-group">
+            <label>Driver Name</label>
+            <input id="fDriverName" placeholder="Suresh"/>
+          </div>
+          <div class="form-group">
+            <label>Fleet No (Bus)</label>
+            <input id="fFleet" placeholder="MTC-1234"/>
+          </div>
+          <div class="form-group">
+            <label>Route No</label>
+            <select id="fRoute">
+              <option value="21">21 — Royapuram ↔ Guindy</option>
+              <option value="15">15 — Island Ground ↔ Koyambedu</option>
+              <option value="M70">M70 — Koyambedu ↔ Thiruvanmiyur</option>
+              <option value="47">47 — Besant Nagar ↔ ICF</option>
+              <option value="70">70 — Avadi ↔ Tambaram</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label>Schedule No</label>
+            <input id="fSchedule" placeholder="SCH-001"/>
+          </div>
+          <div class="form-group">
+            <label>Shift</label>
+            <select id="fShift">
+              <option value="AM">AM</option>
+              <option value="PM">PM</option>
+              <option value="NIGHT">Night</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label>Schedule Start Time</label>
+            <input id="fStartTime" type="time" value="06:00"/>
+          </div>
+          <div class="form-group">
+            <label>Type of Service</label>
+            <select id="fService">
+              <option value="O">Ordinary</option>
+              <option value="E">Express</option>
+              <option value="D">Deluxe</option>
+              <option value="AC">AC</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label>Duty Date</label>
+            <input id="fDate" type="date"/>
+          </div>
+          <div class="form-group">
+            <label>No. of Trips</label>
+            <input id="fTripCount" type="number" value="5" min="1" max="12"/>
+          </div>
+        </div>
+        <div class="form-actions" style="margin-top:20px">
+          <button class="btn btn-primary" onclick="submitWaybill()">Create Waybill</button>
+          <button class="btn btn-ghost" onclick="showPage('pageBoard')">Cancel</button>
+        </div>
+        <div id="createError" style="color:#c62828;font-size:13px;margin-top:10px"></div>
+      </div>
+    </div>
+  </div>
 
-    <table>
-      <thead>
-        <tr>
-          <th>Ticket #</th>
-          <th>Route</th>
-          <th>Journey</th>
-          <th>Fare</th>
-          <th>Txn ID</th>
-          <th>Time</th>
-          <th>Status</th>
-        </tr>
-      </thead>
-      <tbody id="ticketBody"></tbody>
-    </table>
+  <!-- TICKETS: shared across roles -->
+  <div class="page" id="pageTickets">
+    <div class="stats" id="ticketStats"></div>
+    <div class="card">
+      <div class="card-header">
+        <h2>Tickets</h2>
+        <button class="btn btn-ghost btn-sm" onclick="loadTicketPage()">Refresh</button>
+      </div>
+      <div class="card-body" style="padding:12px 20px">
+        <div class="filter-bar">
+          <input type="text" id="tkRoute" placeholder="Filter route..." oninput="filterTickets()"/>
+          <input type="date" id="tkDate" onchange="filterTickets()"/>
+          <select id="tkMode" onchange="filterTickets()">
+            <option value="">All modes</option>
+            <option value="CASH">Cash</option>
+            <option value="UPI">UPI</option>
+            <option value="NCMC">NCMC</option>
+          </select>
+        </div>
+      </div>
+      <div style="overflow:auto">
+        <table>
+          <thead><tr>
+            <th>Ticket #</th><th>Route</th><th>Journey</th><th>Fare</th>
+            <th>Mode</th><th>Conductor</th><th>Time</th><th>Status</th>
+          </tr></thead>
+          <tbody id="ticketTbody"></tbody>
+        </table>
+      </div>
+      <div style="padding:12px 20px">
+        <div class="pagination" id="tkPagination"></div>
+      </div>
+    </div>
+  </div>
 
-    <div class="pagination" id="pagination"></div>
+  <!-- WAYBILL DETAIL MODAL -->
+  <div class="modal-overlay" id="wbModal">
+    <div class="modal">
+      <div class="modal-header">
+        <h2 id="modalTitle">Waybill Detail</h2>
+        <button class="modal-close" onclick="closeModal()">&times;</button>
+      </div>
+      <div class="modal-body" id="modalBody"></div>
+    </div>
   </div>
 </div>
 
 <script>
 const API = '';
-let token = localStorage.getItem('c1_token');
-let allTickets = [];
-let currentPage = 1;
-const PER_PAGE = 20;
+let token = null, userRole = null, userDepot = null, userName = null;
+let allTickets = [], ticketPage = 1;
+const PER = 25;
 
-if (token) showDash();
+// ── Boot ──────────────────────────────────────────────────────────────────
+(function boot() {
+  const saved = localStorage.getItem('etm_token');
+  const meta  = JSON.parse(localStorage.getItem('etm_meta') || '{}');
+  if (saved) { token = saved; userRole = meta.role; userDepot = meta.depotName; userName = meta.username; showApp(); }
+  else showLogin();
+})();
+
+function showLogin() {
+  document.getElementById('loginPage').style.display = 'flex';
+  document.getElementById('app').style.display = 'none';
+}
 
 async function doLogin() {
   const username = document.getElementById('loginUser').value.trim();
   const password = document.getElementById('loginPass').value;
   document.getElementById('loginError').textContent = '';
   try {
-    const res = await fetch(`${API}/api/auth/login`, {
-      method: 'POST',
-      headers: {'Content-Type':'application/json'},
+    const res  = await fetch(`${API}/api/auth/login`, {
+      method:'POST', headers:{'Content-Type':'application/json'},
       body: JSON.stringify({username, password})
     });
     const data = await res.json();
-    if (!res.ok) { document.getElementById('loginError').textContent = data.error; return; }
-    token = data.token;
-    localStorage.setItem('c1_token', token);
-    showDash();
-  } catch(e) {
-    document.getElementById('loginError').textContent = 'Connection error';
-  }
+    if (!res.ok) { document.getElementById('loginError').textContent = data.error || 'Login failed'; return; }
+    token     = data.token;
+    userRole  = data.role;
+    userDepot = data.depotName;
+    userName  = data.username;
+    localStorage.setItem('etm_token', token);
+    localStorage.setItem('etm_meta', JSON.stringify({role: userRole, depotName: userDepot, username: userName}));
+    showApp();
+  } catch(e) { document.getElementById('loginError').textContent = 'Connection error'; }
 }
 
-document.getElementById('loginPass').addEventListener('keydown', e => {
-  if (e.key === 'Enter') doLogin();
-});
+document.getElementById('loginPass').addEventListener('keydown', e => { if(e.key==='Enter') doLogin(); });
 
 function doLogout() {
-  localStorage.removeItem('c1_token');
-  token = null;
-  document.getElementById('dashPage').style.display = 'none';
-  document.getElementById('loginPage').style.display = 'flex';
+  localStorage.removeItem('etm_token');
+  localStorage.removeItem('etm_meta');
+  token = null; userRole = null;
+  showLogin();
 }
 
-function showDash() {
+// ── App shell ─────────────────────────────────────────────────────────────
+function showApp() {
   document.getElementById('loginPage').style.display = 'none';
-  document.getElementById('dashPage').style.display = 'block';
-  loadData();
-  setInterval(loadData, 10000);
+  document.getElementById('app').style.display = 'block';
+  document.getElementById('hdrRole').textContent = roleLabel(userRole);
+  document.getElementById('hdrUser').textContent = userName + (userDepot ? '  |  ' + userDepot : '');
+  buildNav();
+  // Set today's date on date pickers
+  const today = new Date().toISOString().slice(0,10);
+  document.getElementById('boardDate').value = today;
+  document.getElementById('ovDate').value    = today;
+  document.getElementById('fDate').value     = today;
+  // Show first tab
+  const firstTab = navConfig()[0];
+  showPage(firstTab.page);
+  firstTab.load();
 }
 
-async function loadData() {
-  await Promise.all([loadStats(), loadTickets()]);
-  document.getElementById('lastRefresh').textContent =
-    'Last updated: ' + new Date().toLocaleTimeString();
+function roleLabel(r) {
+  return r === 'admin' ? 'MTC Admin' : r === 'depot' ? 'Depot Manager' : 'Conductor';
 }
 
-async function loadStats() {
+function navConfig() {
+  if (userRole === 'admin') return [
+    {label:'Overview',  page:'pageOverview', load: loadOverview},
+    {label:'Tickets',   page:'pageTickets',  load: loadTicketPage},
+  ];
+  if (userRole === 'depot') return [
+    {label:"Today's Board", page:'pageBoard',   load: loadBoard},
+    {label:'Tickets',       page:'pageTickets', load: loadTicketPage},
+  ];
+  // conductor
+  return [
+    {label:'My Waybills', page:'pageBoard',   load: loadBoard},
+    {label:'Tickets',     page:'pageTickets', load: loadTicketPage},
+  ];
+}
+
+function buildNav() {
+  const nav = document.getElementById('navBar');
+  nav.innerHTML = '';
+  navConfig().forEach(cfg => {
+    const t = document.createElement('div');
+    t.className = 'nav-tab';
+    t.textContent = cfg.label;
+    t.onclick = () => { showPage(cfg.page); cfg.load(); setActiveTab(t); };
+    nav.appendChild(t);
+  });
+  nav.firstChild && nav.firstChild.classList.add('active');
+}
+
+function setActiveTab(el) {
+  document.querySelectorAll('.nav-tab').forEach(t => t.classList.remove('active'));
+  el.classList.add('active');
+}
+
+function showPage(id) {
+  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+  document.getElementById(id).classList.add('active');
+}
+
+// ── Auth fetch ────────────────────────────────────────────────────────────
+function authFetch(url, opts={}) {
+  return fetch(API + url, {
+    ...opts,
+    headers: {'Authorization':'Bearer '+token,'Content-Type':'application/json',...(opts.headers||{})}
+  });
+}
+
+// ── ADMIN: Overview ───────────────────────────────────────────────────────
+async function loadOverview() {
+  await Promise.all([loadOverviewStats(), loadOverviewWaybills(), loadOverviewTickets()]);
+}
+
+async function loadOverviewStats() {
   try {
     const res = await authFetch('/api/transit/stats');
     if (!res.ok) return;
     const d = await res.json();
-    document.getElementById('statTodayTickets').textContent = d.today.tickets;
-    document.getElementById('statTodayRevenue').textContent = '₹' + d.today.revenue.toLocaleString('en-IN');
-    document.getElementById('statTotalTickets').textContent = d.total.tickets;
-    document.getElementById('statTotalRevenue').textContent = '₹' + d.total.revenue.toLocaleString('en-IN');
-  } catch(e) {}
+    document.getElementById('overviewStats').innerHTML = `
+      <div class="stat-card"><div class="lbl">Tickets Today</div><div class="val">${d.today.tickets}</div></div>
+      <div class="stat-card"><div class="lbl">Revenue Today</div><div class="val">&#8377;${fmtNum(d.today.revenue)}</div></div>
+      <div class="stat-card"><div class="lbl">Total Tickets</div><div class="val">${d.total.tickets}</div></div>
+      <div class="stat-card"><div class="lbl">Total Revenue</div><div class="val">&#8377;${fmtNum(d.total.revenue)}</div></div>
+    `;
+  } catch(e){}
+}
+
+async function loadOverviewWaybills() {
+  const date = document.getElementById('ovDate').value;
+  try {
+    const res = await authFetch('/api/transit/waybills' + (date ? '?date='+date : ''));
+    if (!res.ok) return;
+    const rows = await res.json();
+    const tbody = document.getElementById('overviewTbody');
+    if (!rows.length) { tbody.innerHTML = '<tr><td colspan="9" class="empty">No waybills found</td></tr>'; return; }
+    tbody.innerHTML = rows.map(w => `
+      <tr style="cursor:pointer" onclick="openWaybillModal('${w.waybill_no}')">
+        <td><b>${w.waybill_no}</b></td>
+        <td>${w.conductor_name||'—'}<br><small style="color:#888">${w.conductor_staff_no}</small></td>
+        <td>${w.driver_name||'—'}</td>
+        <td>${w.route_no||'—'}</td>
+        <td>${w.shift||'—'}</td>
+        <td>${w.trip_count||0}</td>
+        <td>${w.total_passengers||0}</td>
+        <td>&#8377;${fmtNum(w.total_revenue||0)}</td>
+        <td><span class="badge badge-${w.status}">${w.status}</span></td>
+      </tr>`).join('');
+  } catch(e){}
+}
+
+async function loadOverviewTickets() {
+  try {
+    const res = await authFetch('/api/transit/tickets?limit=10');
+    if (!res.ok) return;
+    const d = await res.json();
+    const tickets = d.tickets || [];
+    document.getElementById('overviewTickets').innerHTML = `
+      <table>
+        <thead><tr><th>Ticket #</th><th>Route</th><th>Journey</th><th>Fare</th><th>Mode</th><th>Time</th></tr></thead>
+        <tbody>${tickets.map(t=>`
+          <tr>
+            <td><b>${t.ticket_no}</b></td>
+            <td>${t.route||'—'}</td>
+            <td>${t.source||'—'} &#8594; ${t.destination||'—'}</td>
+            <td>&#8377;${parseFloat(t.fare).toFixed(2)}</td>
+            <td><span class="badge badge-active">${t.payment_mode||'—'}</span></td>
+            <td>${fmtTime(t.created_at)}</td>
+          </tr>`).join('')||'<tr><td colspan="6" class="empty">No tickets yet</td></tr>'}
+        </tbody>
+      </table>`;
+  } catch(e){}
+}
+
+// ── DEPOT: Board ──────────────────────────────────────────────────────────
+async function loadBoard() {
+  const date = document.getElementById('boardDate').value;
+  const subtitle = document.getElementById('boardSubtitle');
+  subtitle.textContent = userDepot ? userDepot + '  |  ' + fmtDateDisplay(date) : fmtDateDisplay(date);
+  try {
+    const res = await authFetch('/api/transit/waybills?date=' + date);
+    if (!res.ok) { document.getElementById('waybillGrid').innerHTML = '<p style="color:#c62828">Error loading waybills</p>'; return; }
+    const rows = await res.json();
+    const grid = document.getElementById('waybillGrid');
+    if (!rows.length) {
+      grid.innerHTML = `<div class="empty" style="grid-column:1/-1"><p>No waybills for this date.</p><br><button class="btn btn-primary" onclick="showPage('pageCreate')">+ Create First Waybill</button></div>`;
+      return;
+    }
+    grid.innerHTML = rows.map(w => {
+      const trips = Array.from({length: parseInt(w.trip_count)||0}, (_,i) => `<div class="trip-dot pending">${i+1}</div>`).join('');
+      return `
+      <div class="wb-card ${w.status}" onclick="openWaybillModal('${w.waybill_no}')">
+        <h3>${w.conductor_name||w.conductor_staff_no}</h3>
+        <div class="wb-meta">
+          <b>Route ${w.route_no}</b>  &bull;  ${w.shift} Shift<br>
+          Bus: ${w.fleet_no||'—'}  &bull;  Driver: ${w.driver_name||'—'}<br>
+          <span class="badge badge-${w.status}">${w.status}</span>
+          &nbsp; ${w.total_passengers||0} pax &nbsp; &#8377;${fmtNum(w.total_revenue||0)}
+        </div>
+        <div class="wb-trips">${trips}</div>
+      </div>`;
+    }).join('');
+  } catch(e){ document.getElementById('waybillGrid').innerHTML = '<p style="color:#c62828">Network error</p>'; }
+}
+
+// ── Create Waybill ────────────────────────────────────────────────────────
+function openCreateModal() { showPage('pageCreate'); }
+
+async function submitWaybill() {
+  const err = document.getElementById('createError');
+  err.textContent = '';
+  const body = {
+    conductorStaffNo:   document.getElementById('fConductorNo').value.trim(),
+    conductorName:      document.getElementById('fConductorName').value.trim(),
+    driverStaffNo:      document.getElementById('fDriverNo').value.trim(),
+    driverName:         document.getElementById('fDriverName').value.trim(),
+    fleetNo:            document.getElementById('fFleet').value.trim(),
+    routeNo:            document.getElementById('fRoute').value,
+    busScheduleNo:      document.getElementById('fSchedule').value.trim(),
+    shift:              document.getElementById('fShift').value,
+    scheduleStartTime:  document.getElementById('fStartTime').value,
+    typeOfService:      document.getElementById('fService').value,
+    dutyDate:           document.getElementById('fDate').value,
+    tripCount:          parseInt(document.getElementById('fTripCount').value) || 5,
+    deviceSerial:       '3170049436',
+  };
+  if (!body.conductorStaffNo || !body.conductorName) { err.textContent = 'Conductor details required'; return; }
+  try {
+    const res = await authFetch('/api/transit/waybill', {method:'POST', body: JSON.stringify(body)});
+    const data = await res.json();
+    if (!res.ok) { err.textContent = data.error || 'Create failed'; return; }
+    // Back to board and refresh
+    document.getElementById('boardDate').value = body.dutyDate;
+    showPage('pageBoard');
+    setActiveTab(document.querySelector('.nav-tab'));
+    loadBoard();
+  } catch(e){ err.textContent = 'Network error'; }
+}
+
+// ── Waybill Detail Modal ──────────────────────────────────────────────────
+async function openWaybillModal(waybillNo) {
+  document.getElementById('wbModal').classList.add('open');
+  document.getElementById('modalTitle').textContent = 'Waybill ' + waybillNo;
+  document.getElementById('modalBody').innerHTML = '<p style="color:#888;padding:20px">Loading...</p>';
+  try {
+    const res = await authFetch('/api/transit/waybill/' + waybillNo);
+    if (!res.ok) { document.getElementById('modalBody').innerHTML = '<p style="color:#c62828">Error loading</p>'; return; }
+    const w = await res.json();
+    const trips = w.trips || [];
+
+    document.getElementById('modalBody').innerHTML = `
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:20px">
+        <div><b>Conductor:</b> ${w.conductor_name} (${w.conductor_staff_no})</div>
+        <div><b>Driver:</b> ${w.driver_name} (${w.driver_staff_no||'—'})</div>
+        <div><b>Route:</b> ${w.route_no}  &nbsp; <b>Fleet:</b> ${w.fleet_no}</div>
+        <div><b>Shift:</b> ${w.shift}  &nbsp; <b>Date:</b> ${w.duty_date}</div>
+        <div><b>Schedule:</b> ${w.bus_schedule_no||'—'}  &nbsp; <b>Start:</b> ${w.schedule_start_time||'—'}</div>
+        <div><b>Status:</b> <span class="badge badge-${w.status}">${w.status}</span></div>
+      </div>
+
+      <h3 style="font-size:13px;font-weight:700;margin-bottom:12px;text-transform:uppercase;letter-spacing:.4px;color:#888">Trip Breakdown</h3>
+      <div class="trip-row header">
+        <div>Trip</div><div>Status</div><div>Pax</div><div>Cash</div><div>UPI</div><div>NCMC</div><div>Total</div>
+      </div>
+      ${trips.map(t => `
+        <div class="trip-row">
+          <div><b>Trip ${t.trip_no}</b></div>
+          <div><span class="badge badge-${t.status}">${t.status}</span></div>
+          <div>${t.passenger_count||0}</div>
+          <div>&#8377;${fmtNum(t.cash_amount||0)}</div>
+          <div>&#8377;${fmtNum(t.upi_amount||0)}</div>
+          <div>&#8377;${fmtNum(t.ncmc_amount||0)}</div>
+          <div><b>&#8377;${fmtNum(t.total_amount||0)}</b></div>
+        </div>`).join('') || '<div style="color:#aaa;padding:12px 0">No trips yet</div>'}
+
+      <div style="margin-top:16px;padding-top:16px;border-top:2px solid #1A237E;display:grid;grid-template-columns:1fr 1fr;gap:8px">
+        <div><b>Total Passengers:</b> ${trips.reduce((s,t)=>s+(t.passenger_count||0),0)}</div>
+        <div><b>Total Revenue:</b> &#8377;${fmtNum(trips.reduce((s,t)=>s+parseFloat(t.total_amount||0),0))}</div>
+      </div>
+    `;
+  } catch(e){ document.getElementById('modalBody').innerHTML = '<p style="color:#c62828">Network error</p>'; }
+}
+
+function closeModal() { document.getElementById('wbModal').classList.remove('open'); }
+document.getElementById('wbModal').addEventListener('click', e => { if(e.target === document.getElementById('wbModal')) closeModal(); });
+
+// ── Tickets ───────────────────────────────────────────────────────────────
+async function loadTicketPage() {
+  await Promise.all([loadTicketStats(), loadTickets()]);
+}
+
+async function loadTicketStats() {
+  try {
+    const res = await authFetch('/api/transit/stats');
+    if (!res.ok) return;
+    const d = await res.json();
+    document.getElementById('ticketStats').innerHTML = `
+      <div class="stat-card"><div class="lbl">Tickets Today</div><div class="val">${d.today.tickets}</div></div>
+      <div class="stat-card"><div class="lbl">Revenue Today</div><div class="val">&#8377;${fmtNum(d.today.revenue)}</div></div>
+      <div class="stat-card"><div class="lbl">Total Tickets</div><div class="val">${d.total.tickets}</div></div>
+      <div class="stat-card"><div class="lbl">Total Revenue</div><div class="val">&#8377;${fmtNum(d.total.revenue)}</div></div>
+    `;
+  } catch(e){}
 }
 
 async function loadTickets() {
   try {
     const res = await authFetch('/api/transit/tickets?limit=500');
-    if (!res.ok) { if (res.status === 401) doLogout(); return; }
+    if (!res.ok) { if(res.status===401) doLogout(); return; }
     const d = await res.json();
-    allTickets = d.tickets;
-    currentPage = 1;
-    filterTable();
-  } catch(e) {}
+    allTickets = d.tickets || [];
+    ticketPage = 1;
+    filterTickets();
+  } catch(e){}
 }
 
-function filterTable() {
-  const route = document.getElementById('filterRoute').value.toLowerCase();
-  const date  = document.getElementById('filterDate').value;
-
-  let filtered = allTickets.filter(t => {
-    const matchRoute = !route || (t.route||'').toLowerCase().includes(route);
-    const matchDate  = !date  || t.created_at.startsWith(date);
-    return matchRoute && matchDate;
-  });
-
-  renderTable(filtered);
+function filterTickets() {
+  const route = document.getElementById('tkRoute').value.toLowerCase();
+  const date  = document.getElementById('tkDate').value;
+  const mode  = document.getElementById('tkMode').value;
+  let filtered = allTickets.filter(t =>
+    (!route || (t.route||'').toLowerCase().includes(route)) &&
+    (!date  || t.created_at.startsWith(date)) &&
+    (!mode  || t.payment_mode === mode)
+  );
+  renderTickets(filtered);
 }
 
-function renderTable(tickets) {
-  const total = tickets.length;
-  const pages = Math.max(1, Math.ceil(total / PER_PAGE));
-  if (currentPage > pages) currentPage = 1;
-
-  const slice = tickets.slice((currentPage-1)*PER_PAGE, currentPage*PER_PAGE);
-  const tbody = document.getElementById('ticketBody');
-  tbody.innerHTML = slice.map(t => `
+function renderTickets(tickets) {
+  const pages = Math.max(1, Math.ceil(tickets.length / PER));
+  if (ticketPage > pages) ticketPage = 1;
+  const slice = tickets.slice((ticketPage-1)*PER, ticketPage*PER);
+  document.getElementById('ticketTbody').innerHTML = slice.map(t => `
     <tr>
       <td><b>${t.ticket_no}</b></td>
-      <td>${t.route || '—'}</td>
-      <td>${t.source || '—'} → ${t.destination || '—'}</td>
-      <td>₹${parseFloat(t.fare).toFixed(2)}</td>
-      <td style="font-family:monospace;font-size:11px">${t.txn_id}</td>
-      <td>${new Date(t.created_at).toLocaleString('en-IN')}</td>
-      <td><span class="badge">${t.status}</span></td>
-    </tr>`).join('') || '<tr><td colspan="7" style="text-align:center;color:#aaa;padding:32px">No tickets found</td></tr>';
+      <td>${t.route||'—'}</td>
+      <td>${t.source||'—'} &#8594; ${t.destination||'—'}</td>
+      <td>&#8377;${parseFloat(t.fare).toFixed(2)}</td>
+      <td><span class="badge badge-active">${t.payment_mode||'—'}</span></td>
+      <td>${t.conductor_id||'—'}</td>
+      <td>${fmtTime(t.created_at)}</td>
+      <td><span class="badge badge-active">${t.status}</span></td>
+    </tr>`).join('') || '<tr><td colspan="8" class="empty">No tickets found</td></tr>';
 
-  const pg = document.getElementById('pagination');
+  const pg = document.getElementById('tkPagination');
   pg.innerHTML = '';
-  for (let i = 1; i <= pages; i++) {
+  for (let i=1;i<=pages;i++) {
     const btn = document.createElement('button');
     btn.textContent = i;
-    if (i === currentPage) btn.classList.add('active');
-    btn.onclick = () => { currentPage = i; filterTable(); };
+    if (i===ticketPage) btn.classList.add('active');
+    btn.onclick = () => { ticketPage=i; filterTickets(); };
     pg.appendChild(btn);
   }
 }
 
-function authFetch(url, opts={}) {
-  return fetch(API + url, {
-    ...opts,
-    headers: { 'Authorization': 'Bearer ' + token, 'Content-Type':'application/json', ...(opts.headers||{}) }
-  });
-}
+// ── Helpers ───────────────────────────────────────────────────────────────
+function fmtNum(n) { return parseFloat(n||0).toLocaleString('en-IN', {maximumFractionDigits:2}); }
+function fmtTime(iso) { return iso ? new Date(iso).toLocaleString('en-IN',{hour12:true,hour:'2-digit',minute:'2-digit',day:'2-digit',month:'short'}) : '—'; }
+function fmtDateDisplay(d) { return d ? new Date(d+'T00:00:00').toLocaleDateString('en-IN',{weekday:'short',day:'numeric',month:'short',year:'numeric'}) : ''; }
 </script>
 </body>
 </html>
