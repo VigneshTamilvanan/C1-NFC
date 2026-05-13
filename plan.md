@@ -1,265 +1,123 @@
-# Integration Plan — PAX A99 NFC via Razorpay Android SDK
+# Moving Tech ETM — Implementation Plan
 
-## Goal
+## Status Summary
 
-Passenger phone (HCE/NFC) → tap PAX A99 ETM device → Razorpay Android SDK reads card → backend wallet debit → confirmation on POS screen.
-
----
-
-## Credentials (demo environment)
-
-| Key | Value |
-|-----|-------|
-| App Key | `f249e904-1935-4d7a-be63-2a318d6145e7` |
-| Username (Login) | `1411001148` |
-| Password | `123456Q` |
-| Username (API) | `1411001149` |
-| Org Code | `MOVING_TECH_INNOVATIONS` |
-| Device Serial | `3170049436` |
-| Ticket | `#18906124` (Shivam Paliwal, Razorpay Solutions) |
-
-Demo environment: transactions not charged. Test with VISA or Mastercard only.
+| Phase | Description | Status |
+|---|---|---|
+| 1 | Environment setup + Gradle migration | ✅ Done |
+| 2 | Razorpay Ezetap SDK integration | ✅ Done |
+| 3 | ETM ticket booking flow | ✅ Done |
+| 4 | Backend + basic dashboard | ✅ Done |
+| 5 | Conductor login + offline mode | ✅ Done |
+| 6 | Waybill system + multi-role dashboard | ✅ Done |
+| 7 | QR ticket validation | ✅ Done |
+| 8 | Thermal ticket printing | ✅ Done |
+| 9 | PICC direct access (raw NFC) | ⏳ Blocked — cert whitelist pending |
+| 10 | Production readiness | ⏳ Pending |
 
 ---
 
-## SDK
+## Phase 1 — Environment Setup ✅
 
-Android SDK (AAR): `ezetapandroidsdk-3.9.aar` (in `app/libs/`)
-GitHub: https://github.com/ezetap/android-payments-sdk/tree/master/release/native-sdk-release/3.9
-Integration guide: page 47 of RazorpayPOS_P2P_SDK_DQR.pdf
+- Gradle project (was raw aapt/d8)
+- JDK 17 required (JDK 25 breaks Gradle 8.6)
+- Ezetap AAR in `app/libs/`
+- Razorpay Service Apps confirmed on device
 
----
+## Phase 2 — Razorpay SDK ✅
 
-## Phase 1 — Environment setup ✅ DONE
+- `EzeAPI.initialize()` + `EzeAPI.pay()` working
+- `onActivityResult` handles success/failure
+- Package `com.test.mvinfc` whitelisted by Razorpay
+- Payment mode extracted from `result.txn.paymentMode` (not hardcoded)
 
-- [x] Download AAR — placed at `app/libs/ezetapandroidsdk-3.9.aar`
-- [x] Migrate project from raw `aapt`/`d8` to Gradle
-- [x] Add AAR as local `fileTree` dependency in `app/build.gradle`
-- [x] Confirm Razorpay Service Apps installed on device:
-  - `com.ezetap.service.demo` v2.0 ✅
-  - `com.ezetap.service.prod` v2.0 ✅
-  - `com.razorpay.pos` v10.18.232_DEMO ✅
+## Phase 3 — ETM Booking Flow ✅
 
-**Build command:**
-```bash
-GRADLE_BIN=$(find "$HOME/.gradle/wrapper/dists/gradle-8.14.3-bin" -name "gradle" -type f | head -1)
-JAVA_HOME=/Library/Java/JavaVirtualMachines/temurin-17.jdk/Contents/Home \
-  "$GRADLE_BIN" assembleDebug --no-daemon -p /Users/admin/Desktop/C1-NFC
-```
-Requires JDK 17 (JDK 25 incompatible with AGP). JDK 17 at `/Library/Java/JavaVirtualMachines/temurin-17.jdk`.
+- Screen 1: route fixed from waybill, src/dst spinners, fare auto-fetch, passenger stepper (1–10)
+- Single tap: "TAP PAY ₹X (N pax)" → directly charges total (pax × fare)
+- No intermediate screens — result toast + back to ticket screen
+- Trip banner shows active trip no + route
+- Total fare = per-pax × passenger count sent to Razorpay
 
-## Phase 2 — SDK integration ✅ DONE
+## Phase 4 — Backend + Dashboard ✅
 
-- [x] `EzeAPI.initialize()` with appKey, merchantName, userName, appMode `EZETAP_DEMO`
-- [x] `EzeAPI.pay()` with amount, reference, customer fields
-- [x] `onActivityResult` handler logging all intent extras + pretty-printed JSON
-- [x] Package whitelisted by Razorpay — `com.test.mvinfc`
-- [x] Service App login working after manual login via `com.ezetap.service.demo`
-- [x] NFC reader confirmed active — `PAYMENT_FAILED: Card payment failed due to PIN timeout` = card detected, EMV started
-- [x] Auto-reinit on session loss — app recovers silently on `SESSION_TIMED_OUT`
+- Node.js/Express on Render
+- Supabase PostgreSQL
+- Endpoints: `/api/auth/login`, `/api/transit/tap`, `/api/transit/tickets`, `/api/transit/stats`
+- `passenger_count` column in tickets table
+- Multi-role dashboard (admin/depot/conductor)
+- Waybill board with trip dots, live ticket counts, End Trip, Close Waybill
 
-**Key files:**
-- `app/src/main/java/com/test/mvinfc/MainActivity.java`
-- `app/src/main/res/layout/activity_main.xml`
-- Package name: `com.test.mvinfc`
+## Phase 5 — Conductor Login + Offline ✅
 
-## Phase 3 — POC: A2 Transit Tap-to-Pay ✅ DONE
+- `LoginActivity` with 4-digit PIN (SHA-256 hashed)
+- 5 conductors: C001–C005
+- Room SQLite for offline ticket storage
+- WorkManager background sync
+- TK-PENDING shown offline, syncs when network available
 
-### Chosen approach: A2 — Tap = instant payment
+## Phase 6 — Waybill System ✅
 
-User boards bus → conductor has trip pre-filled → passenger taps phone (Google Pay/PhonePe) on PAX A99 → Razorpay charges fare → backend issues ticket → confirmation on POS screen.
+- Waybill assigned by depot, fetched by conductor on login
+- `activeTripId`, `activeWaybillNo`, `activeRouteNo`, `activeFleetNo` as static fields
+- Restored from API on app restart (no data loss)
+- Trip start/end via backend API
+- Waybill status: open → active → closed
 
-### ETM App screens
+## Phase 7 — QR Ticket Validation ✅
 
-```
-Screen 1 — Trip Setup (conductor fills once)
-┌─────────────────────┐
-│ Route:  [__________]│  ← Spinner (5 Chennai GTFS routes)
-│ Source: [__________]│  ← Spinner (stops auto-populated)
-│ Dest:   [__________]│  ← Spinner (stops auto-populated)
-│ Fare:   [__________]│
-│                     │
-│   [START COLLECTION]│
-└─────────────────────┘
+- Embedded ZXing camera (no external app) — portrait locked
+- Parses comma-separated QR payload
+- fare field = rupees (not paise)
+- VALID → post ticket (paymentMode=NCMC) + print
+- ALREADY USED → usedFlag=1 in QR
+- ALREADY SCANNED → local Room DB `scanned_qr` table check
+- INVALID → malformed format
 
-Screen 2 — Tap Screen (shown to passenger)
-┌─────────────────────┐
-│ Route 21C           │
-│ Koyambedu → Adyar   │
-│ Fare: ₹25           │
-│                     │
-│  TAP PHONE TO PAY   │
-│  [   PAY NOW   ]    │
-└─────────────────────┘
+## Phase 8 — Thermal Printing ✅
 
-Screen 3 — Result
-┌─────────────────────┐
-│ ✅ TICKET ISSUED    │
-│ Ticket #: TK-00123  │
-│ Txn: rzp_xxxx       │
-│                     │
-│  [NEXT PASSENGER]   │
-└─────────────────────┘
-```
+- NeptuneLite IDAL → IPrinter
+- `com.pax.permission.PRINTER` in manifest (sufficient — no cert whitelist needed)
+- Prints after payment success (UPI/CARD) and QR validation
+- MTC ticket format: header, fleet, route, journey, pax × fare = total, payment mode, timestamp
+- 384px wide (58mm thermal roll)
 
-### Routes (from Chennai GTFS)
+## Phase 9 — Direct PICC Access ⏳ Blocked
 
-| Route | From | To |
-|-------|------|----|
-| 21 | Royapuram | Guindy |
-| 15 | Island Ground | Koyambedu |
-| M70 | Koyambedu | Thiruvanmiyur |
-| 47 | Besant Nagar | ICF |
-| 70 | Avadi | Tambaram |
+NfcTestActivity working:
+- ✅ NeptuneLiteUser init
+- ✅ getDal() → IPicc obtained
+- ✅ piccOpen() — reader powered on
+- ✅ Physical card detect (EDetectMode.EMV_AB)
+- ❌ iPhone NFC — requires Apple Pay active (double-click side button)
+- ❌ PICC permission for ETM app — cert not whitelisted
 
-### NFC tap status
+**Pending:** Razorpay to whitelist cert SHA-256 `F8:95:86:4B...` for `com.pax.permission.PICC`
+Ticket: #18906124
 
-- Card insert (chip): ✅ Full flow works, PIN prompt appears
-- NFC contactless (phone tap): ⚠️ Razorpay demo merchant does not show contactless option — awaiting Razorpay to enable contactless payment method for `MOVING_TECH_INNOVATIONS` demo account
+## Phase 10 — Production ⏳
 
-**Samsung SM-G781B NFC verified:** NFC ON, Google Pay HCE active (`TpHceService`), Visa AID registered — phone is ready to tap once Razorpay enables contactless.
-
-## Phase 4 — Backend + Dashboard ✅ DONE
-
-### Stack
-- **Backend:** Node.js + Express 5
-- **Database:** PostgreSQL via Supabase (session pooler, port 5432)
-- **Dashboard:** Single-page HTML + vanilla JS
-- **Hosting:** Render — `https://movingtech-etm.onrender.com`
-
-### API endpoints
-
-| Method | Path | Auth | Description |
-|--------|------|------|-------------|
-| POST | `/api/auth/login` | — | Returns JWT token |
-| POST | `/api/transit/tap` | — | ETM app posts payment result, returns ticketNo |
-| GET | `/api/transit/tickets` | JWT | Paginated ticket list |
-| GET | `/api/transit/stats` | JWT | Today + all-time counts and revenue |
-
-### Dashboard features
-- Login page (username: `mtc_admin`)
-- Stats cards: tickets today, revenue today, total tickets, total revenue
-- Ticket table with route/date filter + pagination
-- Auto-refresh every 10s
-
-### Key files
-- `backend/src/index.js` — Express server
-- `backend/src/auth.js` — JWT login
-- `backend/src/tickets.js` — tap + tickets + stats routes
-- `backend/src/db.js` — Supabase pg pool
-- `backend/src/schema.sql` — DB schema
-- `backend/src/seed.js` — admin user seed
-- `dashboard/index.html` — full dashboard SPA
-
-### Data flow
-```
-PAX ETM app (EzeAPI.pay)
-        ↓
-Razorpay processes payment → onActivityResult RESULT_OK
-        ↓
-POST https://movingtech-etm.onrender.com/api/transit/tap
-  { txnId, route, source, destination, fare, timestamp }
-        ↓
-Backend inserts ticket → returns { ticketNo }
-        ↓
-Screen 3 shows ✅ TICKET ISSUED + ticketNo
-        ↓
-Dashboard auto-refreshes → ticket appears in live feed
-```
-
-## Phase 5 — Contactless NFC enablement ⏳ PENDING
-
-- [ ] Email Razorpay (ticket #18906124) to enable contactless payment method for demo merchant
-- [ ] Test Google Pay HCE tap end-to-end with Samsung SM-G781B
-- [ ] Confirm ticket issued via NFC tap flow
-
-## Phase 6 — QR Ticket Validation (anna-checker integration) ⏳ BLOCKED
-
-Validate pre-booked MTC tickets by scanning QR on ETM device and calling Moving.Tech API.
-
-**QR payload format (comma-separated):**
-```
-<signature>,<ticketId>,<userId>,<tripId>,<count>,<usedFlag>,<type>,<zone>,<fare_paise>,<colour>,<timestamp>,,,
-```
-
-**API:** `POST https://api.moving.tech/pilot/app/v2/auth/signature` → Bearer token → `POST /multimodal/ticket/verify`
-
-**Auth method:** RSA-SHA256 signed body with conductor credentials, `x-sdk-authorization` header
-
-**Current status:** RSA key + signing logic working. Server returns HTTP 500 — RSA public key not registered on Moving.Tech backend for conductor `O30228`.
-
-**Backend code:** `backend/src/validate.js` — endpoint `POST /api/transit/validate` ready, will work once auth is unblocked.
-
-**Blockers:**
-- [ ] Moving.Tech team to register RSA public key for conductor `O30228`
-- [ ] Or provide a pre-provisioned private key already registered in their system
-- [ ] Once auth works: add QR scanner screen (Screen 4) to ETM Android app
-- [ ] Show ✅ VALID (route, journey, validity) or ❌ INVALID on PAX screen
-
-**RSA public key to register:**
-```
------BEGIN PUBLIC KEY-----
-MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAyaf89IraN6KRCeDZ6/Ez
-n7InuNaAHXNqWkVdHKYkYx+Pk1R6oCe2nzsXTnkWBs0tj4kcOIe2w7PqmW0cRl3H
-8Kar0+uxeNCGcWI0BCqSn815+uSabwQuaWXQqUPzTlC8iil6lJWJtFXpHzFk8LcW
-N9Xbq88X634s4xxOO2iVREHsustpgTz154nJcT8nToNjqzF2t130XTijPjIN2DJn
-GifeSvT9ueCL8BB5zLd9ls4t+LtRHFoWt8DU/bijssRfhmVPfu8no+NtFLQ35/VY
-l9vhjR7Ilfoy+x6f+tPTHJhrJLAsdBDnyKz2sPTZexTGxO7CiAzZHVR+EFh/ujMc
-KwIDAQAB
------END PUBLIC KEY-----
-```
-
-## Phase 7 — Production readiness ⏳ PENDING
-
-- [ ] Switch from demo credentials to production app key
-- [ ] Generate production signing keystore
-- [ ] Test with actual HCE phone (Google Pay tap) end-to-end
-- [ ] Confirm Razorpay Service App provisioned on all target devices via PAXSTORE
-- [ ] Conductor login / auth flow
-- [ ] Change dashboard password after go-live
+- [ ] Production signing keystore (replace debug cert)
+- [ ] Re-whitelist production cert with Razorpay/PAX
+- [ ] Switch Ezetap from `EZETAP_DEMO` to production app mode
+- [ ] Tamil font rendering in ticket print
+- [ ] Moving.Tech QR API integration (sandbox confirmed working, token obtained)
+- [ ] Dashboard export CSV
+- [ ] Analytics tab in dashboard
 
 ---
 
-## What works / what doesn't
+## Key Files
 
-| Item | Status | Notes |
-|------|--------|-------|
-| Gradle build | ✅ | JDK 17 required, Gradle 8.14.3 |
-| AAR wired | ✅ | `app/libs/` + `fileTree` dep |
-| EzeAPI.initialize() | ✅ | Returns success, local config |
-| Service App login | ✅ | Manual login with `1411001148` / `123456Q` |
-| NFC reader active | ✅ | Card detected, EMV contactless started |
-| EzeAPI.pay() chip insert | ✅ | Full flow works, PIN prompt appears |
-| EzeAPI.pay() contactless | ⚠️ | No contactless option in Razorpay demo UI — merchant config |
-| Auto-reinit on session loss | ✅ | Recovers silently, re-enables PAY NOW |
-| Backend POST | ✅ | Posts to Render, ticket stored in Supabase |
-| Dashboard login | ✅ | JWT auth, mtc_admin |
-| Dashboard ticket feed | ✅ | Live table, auto-refresh 10s |
-| Dashboard stats | ✅ | Today + all-time revenue/tickets |
-
-## Architecture
-
-```
-[ETM app — com.test.mvinfc on PAX A99]
-  Screen 1: Conductor fills route/fare (GTFS dropdowns)
-  Screen 2: Passenger taps phone / inserts card
-  Screen 3: Ticket confirmation
-       |
-  EzeAPI (ezetapandroidsdk-3.9.aar)
-       |
-  com.ezetap.service.demo (cert-whitelisted, owns PICC)
-       |
-  PiccManager → NXP PN5190 → reads Google Pay HCE tap
-       |
-  Ezetap/Razorpay backend (charges fare)
-       |
-  onActivityResult → POST to movingtech-etm.onrender.com
-       |
-  Render (Node.js) → Supabase PostgreSQL
-       |
-  Dashboard: https://movingtech-etm.onrender.com
-```
-
-## Key constraint
-
-NFC access and Razorpay payment processing are coupled. Raw card data not exposed — only transaction result. For raw PICC access with custom payment gateway (future), pursue PAX cert whitelisting (Option 1/2 in CLAUDE.md).
+| File | Purpose |
+|---|---|
+| `app/src/main/java/com/test/mvinfc/MainActivity.java` | Main ticket booking screen |
+| `app/src/main/java/com/test/mvinfc/WaybillActivity.java` | Waybill + trip management |
+| `app/src/main/java/com/test/mvinfc/LoginActivity.java` | Conductor PIN login |
+| `app/src/main/java/com/test/mvinfc/NfcTestActivity.java` | Raw PICC test screen |
+| `app/src/main/java/com/test/mvinfc/AppDatabase.java` | Room DB (v2) |
+| `app/src/main/res/layout/activity_main.xml` | Ticket screen layout |
+| `backend/src/tickets.js` | Tap + ticket API |
+| `backend/src/waybill.js` | Waybill + trip API |
+| `backend/src/auth.js` | JWT login (role/depot in token) |
+| `dashboard/index.html` | Multi-role SPA dashboard |
