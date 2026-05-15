@@ -372,6 +372,15 @@
             android:layout_marginBottom="24dp"
             android:visibility="gone">
 
+            <ImageView
+                android:id="@+id/ivQrPhoto"
+                android:layout_width="80dp"
+                android:layout_height="80dp"
+                android:layout_gravity="center"
+                android:layout_marginBottom="12dp"
+                android:scaleType="centerCrop"
+                android:visibility="gone"/>
+
             <TextView
                 android:id="@+id/tvQrStatus"
                 android:layout_width="match_parent"

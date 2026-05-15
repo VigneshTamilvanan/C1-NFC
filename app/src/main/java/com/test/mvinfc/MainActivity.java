@@ -619,6 +619,8 @@ public class MainActivity extends androidx.appcompat.app.AppCompatActivity {
         android.widget.TextView tvStatus = findViewById(R.id.tvQrStatus);
         android.widget.TextView tvDetail = findViewById(R.id.tvQrDetail);
         android.widget.LinearLayout card = findViewById(R.id.qrResultCard);
+        android.widget.ImageView ivPhoto = findViewById(R.id.ivQrPhoto);
+        if (ivPhoto != null) ivPhoto.setVisibility(View.GONE);
         card.setVisibility(View.VISIBLE);
 
         if (raw == null || raw.isEmpty()) {
@@ -626,6 +628,11 @@ public class MainActivity extends androidx.appcompat.app.AppCompatActivity {
             tvStatus.setTextColor(0xFFC62828);
             card.setBackgroundColor(0xFFFFEBEE);
             tvDetail.setText("No QR content provided.");
+            return;
+        }
+
+        if (raw.trim().startsWith("{")) {
+            validateJsonQr(raw.trim(), tvStatus, tvDetail, card);
             return;
         }
 
@@ -733,6 +740,232 @@ public class MainActivity extends androidx.appcompat.app.AppCompatActivity {
         });
     }
 
+    private void validateJsonQr(String raw,
+                                android.widget.TextView tvStatus,
+                                android.widget.TextView tvDetail,
+                                android.widget.LinearLayout card) {
+        try {
+            JSONObject qr = new JSONObject(raw);
+            String token        = qr.optString("token", "");
+            String name         = qr.optString("name", "—");
+            String aadhaarLast4 = qr.optString("aadhaarLast4", "****");
+            String gender       = qr.optString("gender", "—");
+            String scheme       = qr.optString("scheme", "—");
+            String issuedAt     = qr.optString("issuedAt", "");
+            String photoB64     = qr.optString("photo", "");
+
+            if (token.isEmpty() || issuedAt.isEmpty()) {
+                tvStatus.setText("INVALID");
+                tvStatus.setTextColor(0xFFC62828);
+                card.setBackgroundColor(0xFFFFEBEE);
+                tvDetail.setText("Missing token or issuedAt.");
+                return;
+            }
+
+            // Parse issuedAt — format: 2026-05-15T05:07:05.355Z
+            long issuedMs;
+            try {
+                java.text.SimpleDateFormat sdf = new java.text.SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSS'Z'", java.util.Locale.US);
+                sdf.setTimeZone(java.util.TimeZone.getTimeZone("UTC"));
+                issuedMs = sdf.parse(issuedAt).getTime();
+            } catch (Exception e1) {
+                // Fallback: without millis
+                try {
+                    java.text.SimpleDateFormat sdf = new java.text.SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss'Z'", java.util.Locale.US);
+                    sdf.setTimeZone(java.util.TimeZone.getTimeZone("UTC"));
+                    issuedMs = sdf.parse(issuedAt).getTime();
+                } catch (Exception e2) {
+                    tvStatus.setText("INVALID");
+                    tvStatus.setTextColor(0xFFC62828);
+                    card.setBackgroundColor(0xFFFFEBEE);
+                    tvDetail.setText("Cannot parse issuedAt: " + issuedAt);
+                    return;
+                }
+            }
+
+            long diff = Math.abs(System.currentTimeMillis() - issuedMs);
+            if (diff > 30000) {
+                tvStatus.setText("EXPIRED");
+                tvStatus.setTextColor(0xFFC62828);
+                card.setBackgroundColor(0xFFFFEBEE);
+                tvDetail.setText("Pass expired. Age: " + (diff / 1000) + "s (max 10s)\nIssuedAt: " + issuedAt);
+                return;
+            }
+
+            String ts = new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss'Z'", Locale.US).format(new Date());
+            tvStatus.setText("VALID FREE PASS");
+            tvStatus.setTextColor(0xFF1B5E20);
+            card.setBackgroundColor(0xFFE8F5E9);
+
+            android.widget.ImageView ivPhoto2 = findViewById(R.id.ivQrPhoto);
+            if (ivPhoto2 != null && !photoB64.isEmpty()) {
+                try {
+                    byte[] decoded = android.util.Base64.decode(photoB64, android.util.Base64.DEFAULT);
+                    android.graphics.Bitmap bmp = android.graphics.BitmapFactory.decodeByteArray(decoded, 0, decoded.length);
+                    if (bmp != null) { ivPhoto2.setImageBitmap(bmp); ivPhoto2.setVisibility(View.VISIBLE); }
+                } catch (Exception ignored) {}
+            }
+
+            tvDetail.setText(
+                "Name:    " + name + "\n" +
+                "Gender:  " + gender + "\n" +
+                "Aadhaar: ****" + aadhaarLast4 + "\n" +
+                "Scheme:  " + scheme
+            );
+            postFreePassTicket(token, name, gender, aadhaarLast4, scheme, ts);
+
+        } catch (Exception e) {
+            tvStatus.setText("INVALID");
+            tvStatus.setTextColor(0xFFC62828);
+            card.setBackgroundColor(0xFFFFEBEE);
+            tvDetail.setText("Malformed JSON: " + e.getMessage());
+        }
+    }
+
+    private void postFreePassTicket(String token, String name, String gender, String aadhaarLast4, String scheme, String ts) {
+        String conductorId = ConductorAuth.getLoggedInId(this);
+        String txnId      = "FP-" + token;
+        String shortRoute = WaybillActivity.activeRouteNo != null ? WaybillActivity.activeRouteNo : "—";
+        String src = spinnerSource.getSelectedItem() != null ? spinnerSource.getSelectedItem().toString() : "—";
+        String dst = spinnerDest.getSelectedItem()   != null ? spinnerDest.getSelectedItem().toString()   : "—";
+
+        TicketEntity entity = new TicketEntity();
+        entity.txnId = txnId; entity.route = shortRoute; entity.source = src;
+        entity.destination = dst; entity.fare = "0"; entity.conductorId = conductorId;
+        entity.timestamp = ts; entity.synced = false;
+
+        executor.execute(() -> {
+            AppDatabase.get(this).ticketDao().insert(entity);
+            if (isOnline()) {
+                try {
+                    JSONObject body = new JSONObject();
+                    body.put("txnId", txnId); body.put("route", shortRoute);
+                    body.put("source", src); body.put("destination", dst);
+                    body.put("fare", 0); body.put("conductorId", conductorId);
+                    body.put("timestamp", ts); body.put("tripId", WaybillActivity.activeTripId);
+                    body.put("waybillNo", WaybillActivity.activeWaybillNo);
+                    body.put("paymentMode", "FREE_PASS"); body.put("passengerCount", 1);
+
+                    URL url = new URL(BACKEND_URL);
+                    HttpURLConnection conn = (HttpURLConnection) url.openConnection();
+                    conn.setRequestMethod("POST");
+                    conn.setRequestProperty("Content-Type", "application/json");
+                    conn.setDoOutput(true); conn.setConnectTimeout(8000); conn.setReadTimeout(8000);
+                    conn.getOutputStream().write(body.toString().getBytes(StandardCharsets.UTF_8));
+
+                    int code = conn.getResponseCode();
+                    String ticketNo = "TK-FP";
+                    if (code == 200 || code == 201) {
+                        String resp = new Scanner(conn.getInputStream()).useDelimiter("\\A").next();
+                        ticketNo = new JSONObject(resp).optString("ticketNo", "TK-FP");
+                        TicketEntity[] pending = AppDatabase.get(this).ticketDao().getPending()
+                            .stream().filter(t -> t.txnId.equals(txnId)).toArray(TicketEntity[]::new);
+                        if (pending.length > 0) { pending[0].synced = true; pending[0].ticketNo = ticketNo; AppDatabase.get(this).ticketDao().update(pending[0]); }
+                    } else {
+                        android.util.Log.w("FREE_PASS", "backend returned " + code + ", printing anyway");
+                    }
+                    final String finalTicketNo = ticketNo;
+                    uiHandler.post(() -> {
+                        Toast.makeText(this, "Free pass: " + finalTicketNo, Toast.LENGTH_SHORT).show();
+                        printFreePassTicket(finalTicketNo, name, gender, aadhaarLast4, scheme, shortRoute, ts);
+                    });
+                } catch (Exception e) {
+                    Log.e(TAG, "free pass post error", e);
+                    uiHandler.post(() -> printFreePassTicket("TK-FP", name, gender, aadhaarLast4, scheme, shortRoute, ts));
+                }
+            } else {
+                uiHandler.post(() -> printFreePassTicket("TK-FP", name, gender, aadhaarLast4, scheme, shortRoute, ts));
+            }
+        });
+    }
+
+    void printFreePassTicket(String ticketNo, String name, String gender, String aadhaarLast4, String scheme, String route, String ts) {
+        executor.execute(() -> {
+            try {
+                com.pax.dal.IDAL dal = com.pax.neptunelite.api.NeptuneLiteUser.getInstance().getDal(this);
+                com.pax.dal.IPrinter printer = dal.getPrinter();
+                printer.init();
+                android.graphics.Bitmap bmp = buildFreePassBitmap(ticketNo, name, gender, aadhaarLast4, scheme, route, ts, 384);
+                printer.printBitmap(bmp);
+                printer.step(60);
+                int result = printer.start();
+                if (result != 0) uiHandler.post(() -> Toast.makeText(this, "Printer error: " + result, Toast.LENGTH_SHORT).show());
+            } catch (Exception e) {
+                android.util.Log.e("PRINTER", "free pass print failed", e);
+                uiHandler.post(() -> Toast.makeText(this, "Print failed: " + e.getMessage(), Toast.LENGTH_SHORT).show());
+            }
+        });
+    }
+
+    private android.graphics.Bitmap buildFreePassBitmap(String ticketNo, String name, String gender,
+            String aadhaarLast4, String scheme, String route, String ts, int width) {
+        int p = 14, lh = 36;
+        android.graphics.Bitmap bmp = android.graphics.Bitmap.createBitmap(width, 16 * lh + p * 2, android.graphics.Bitmap.Config.ARGB_8888);
+        android.graphics.Canvas c = new android.graphics.Canvas(bmp);
+        c.drawColor(android.graphics.Color.WHITE);
+
+        android.graphics.Paint center = new android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG);
+        center.setColor(android.graphics.Color.BLACK); center.setTextAlign(android.graphics.Paint.Align.CENTER);
+        center.setTypeface(android.graphics.Typeface.DEFAULT_BOLD);
+        android.graphics.Paint left = new android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG);
+        left.setColor(android.graphics.Color.BLACK); left.setTextAlign(android.graphics.Paint.Align.LEFT);
+        android.graphics.Paint right = new android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG);
+        right.setColor(android.graphics.Color.BLACK); right.setTextAlign(android.graphics.Paint.Align.RIGHT);
+        android.graphics.Paint div = new android.graphics.Paint();
+        div.setColor(android.graphics.Color.BLACK); div.setStrokeWidth(2f);
+        android.graphics.Paint dotDiv = new android.graphics.Paint();
+        dotDiv.setColor(android.graphics.Color.BLACK); dotDiv.setStrokeWidth(1f);
+        dotDiv.setPathEffect(new android.graphics.DashPathEffect(new float[]{6, 4}, 0));
+
+        String fleet   = WaybillActivity.activeFleetNo   != null ? WaybillActivity.activeFleetNo   : "—";
+        String waybill = WaybillActivity.activeWaybillNo != null ? WaybillActivity.activeWaybillNo : "—";
+        String tripNo  = String.valueOf(WaybillActivity.activeTripNo);
+        String dateStr = ts, timeStr = "";
+        try {
+            java.text.SimpleDateFormat in = new java.text.SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss'Z'", java.util.Locale.US);
+            java.util.Date dt = in.parse(ts);
+            dateStr = new java.text.SimpleDateFormat("dd.MM.yyyy", java.util.Locale.US).format(dt);
+            timeStr = new java.text.SimpleDateFormat("HH:mm:ss",   java.util.Locale.US).format(dt);
+        } catch (Exception ignored) {}
+
+        int y = p;
+        center.setTextSize(28f); c.drawText("Free Women Ticket", width / 2f, y + 28, center); y += lh;
+        center.setTextSize(18f); center.setTypeface(android.graphics.Typeface.DEFAULT);
+        c.drawText("MTC, Chennai", width / 2f, y + 18, center); y += lh - 6;
+        c.drawLine(p, y, width - p, y, div); y += 8;
+
+        left.setTextSize(20f); right.setTextSize(20f);
+        c.drawText("T No: " + ticketNo, p, y + 20, left); c.drawText(dateStr, width - p, y + 20, right); y += lh;
+        c.drawText("Waybill: " + waybill, p, y + 20, left); c.drawText(timeStr, width - p, y + 20, right); y += lh - 4;
+        c.drawLine(p, y, width - p, y, div); y += 8;
+
+        c.drawText("Fleet: " + fleet, p, y + 20, left); c.drawText("Trip: " + tripNo, width - p, y + 20, right); y += lh - 4;
+        c.drawLine(p, y, width - p, y, div); y += 8;
+
+        center.setTextSize(22f); center.setTypeface(android.graphics.Typeface.DEFAULT_BOLD);
+        c.drawText("Route: " + route, width / 2f, y + 22, center); y += lh;
+        c.drawLine(p, y, width - p, y, div); y += 8;
+
+        left.setTextSize(20f); left.setTypeface(android.graphics.Typeface.DEFAULT_BOLD);
+        right.setTextSize(20f); right.setTypeface(android.graphics.Typeface.DEFAULT);
+        c.drawText("Name:", p, y + 20, left); c.drawText(name, width - p, y + 20, right); y += lh;
+        c.drawText("Gender:", p, y + 20, left); c.drawText(gender, width - p, y + 20, right); y += lh;
+        c.drawText("Aadhaar:", p, y + 20, left); c.drawText("****" + aadhaarLast4, width - p, y + 20, right); y += lh;
+        c.drawText("Scheme:", p, y + 20, left); c.drawText(scheme, width - p, y + 20, right); y += lh;
+        c.drawLine(p, y, width - p, y, div); y += 8;
+
+        center.setTextSize(28f); center.setTypeface(android.graphics.Typeface.DEFAULT_BOLD);
+        c.drawText("FREE  (FREE_PASS)", width / 2f, y + 28, center); y += lh + 6;
+
+        android.graphics.Path path = new android.graphics.Path();
+        path.moveTo(p, y); path.lineTo(width - p, y);
+        c.drawPath(path, dotDiv); y += 10;
+
+        center.setTextSize(17f); center.setTypeface(android.graphics.Typeface.DEFAULT);
+        c.drawText("Thank you for travelling with MTC", width / 2f, y + 17, center);
+        return bmp;
+    }
+
     private void postQrTicket(String qrTicketId, double fareRupees, String zone) {
         String conductorId = ConductorAuth.getLoggedInId(this);
         String timestamp   = new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss'Z'", Locale.US).format(new Date());
@@ -782,10 +1015,10 @@ public class MainActivity extends androidx.appcompat.app.AppCompatActivity {
                     conn.getOutputStream().write(body.toString().getBytes(StandardCharsets.UTF_8));
 
                     int code = conn.getResponseCode();
+                    String ticketNo = "TK-QR";
                     if (code == 200 || code == 201) {
-                        String resp     = new Scanner(conn.getInputStream()).useDelimiter("\\A").next();
-                        String ticketNo = new JSONObject(resp).optString("ticketNo", "TK-?");
-                        // Mark synced
+                        String resp = new Scanner(conn.getInputStream()).useDelimiter("\\A").next();
+                        ticketNo = new JSONObject(resp).optString("ticketNo", "TK-QR");
                         TicketEntity[] pending = AppDatabase.get(this).ticketDao().getPending()
                             .stream().filter(t -> t.txnId.equals(txnId)).toArray(TicketEntity[]::new);
                         if (pending.length > 0) {
@@ -793,11 +1026,12 @@ public class MainActivity extends androidx.appcompat.app.AppCompatActivity {
                             pending[0].ticketNo = ticketNo;
                             AppDatabase.get(this).ticketDao().update(pending[0]);
                         }
-                        uiHandler.post(() -> {
-                            Toast.makeText(this, "Recorded: " + ticketNo, Toast.LENGTH_SHORT).show();
-                            printTicket(ticketNo, shortRoute, src, dst, 1, fareVal, "QR", timestamp);
-                        });
                     }
+                    final String finalQrTicketNo = ticketNo;
+                    uiHandler.post(() -> {
+                        Toast.makeText(this, "Recorded: " + finalQrTicketNo, Toast.LENGTH_SHORT).show();
+                        printTicket(finalQrTicketNo, shortRoute, src, dst, 1, fareVal, "QR", timestamp);
+                    });
                 } catch (Exception e) {
                     Log.e(TAG, "QR ticket post error", e);
                 }
