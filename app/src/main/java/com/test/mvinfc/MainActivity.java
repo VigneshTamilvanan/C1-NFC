@@ -809,8 +809,7 @@ public class MainActivity extends androidx.appcompat.app.AppCompatActivity {
             tvDetail.setText(
                 "Name:    " + name + "\n" +
                 "Gender:  " + gender + "\n" +
-                "Aadhaar: ****" + aadhaarLast4 + "\n" +
-                "Scheme:  " + scheme
+                "Aadhaar: ****" + aadhaarLast4
             );
             postFreePassTicket(token, name, gender, aadhaarLast4, scheme, ts);
 
@@ -929,7 +928,7 @@ public class MainActivity extends androidx.appcompat.app.AppCompatActivity {
         } catch (Exception ignored) {}
 
         int y = p;
-        center.setTextSize(28f); c.drawText("Free Women Ticket", width / 2f, y + 28, center); y += lh;
+        center.setTextSize(28f); c.drawText("Women Ticket", width / 2f, y + 28, center); y += lh;
         center.setTextSize(18f); center.setTypeface(android.graphics.Typeface.DEFAULT);
         c.drawText("MTC, Chennai", width / 2f, y + 18, center); y += lh - 6;
         c.drawLine(p, y, width - p, y, div); y += 8;
@@ -951,11 +950,10 @@ public class MainActivity extends androidx.appcompat.app.AppCompatActivity {
         c.drawText("Name:", p, y + 20, left); c.drawText(name, width - p, y + 20, right); y += lh;
         c.drawText("Gender:", p, y + 20, left); c.drawText(gender, width - p, y + 20, right); y += lh;
         c.drawText("Aadhaar:", p, y + 20, left); c.drawText("****" + aadhaarLast4, width - p, y + 20, right); y += lh;
-        c.drawText("Scheme:", p, y + 20, left); c.drawText(scheme, width - p, y + 20, right); y += lh;
+        y -= lh; // removed scheme row
         c.drawLine(p, y, width - p, y, div); y += 8;
 
-        center.setTextSize(28f); center.setTypeface(android.graphics.Typeface.DEFAULT_BOLD);
-        c.drawText("FREE  (FREE_PASS)", width / 2f, y + 28, center); y += lh + 6;
+        y += 6;
 
         android.graphics.Path path = new android.graphics.Path();
         path.moveTo(p, y); path.lineTo(width - p, y);
